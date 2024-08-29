@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import json
@@ -10,44 +9,50 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import tempfile
 import logging
+import os
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize Firebase app (do this only once)
-# @st.cache_resource
-# def initialize_firebase():
-#     if not firebase_admin._apps:
-#         cred = credentials.Certificate("cred/serviceAccountKey.json")
-#         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
-#     return storage.bucket()
-
-# # Use the function to initialize Firebase and get the bucket
-# bucket = initialize_firebase()
-def dict_from_attrdict(attrdict):
-    if isinstance(attrdict, dict):
-        return {k: dict_from_attrdict(v) for k, v in attrdict.items()}
-    elif isinstance(attrdict, list):
-        return [dict_from_attrdict(i) for i in attrdict]
-    else:
-        return attrdict
+load_dotenv()
 
 @st.cache_resource
 def initialize_firebase():
     if not firebase_admin._apps:
-        # Load the Firebase configuration from Streamlit secrets
-        firebase_config = st.secrets["firebase"]["my_project_settings"]
+        # Create a dictionary with the Firebase configuration
+        firebase_config = {
+            "type": os.getenv("FIREBASE_TYPE"),
+            "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+            "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
+            "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+            "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+            "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+            "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+            "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+            "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+            "universe_domain": os.getenv("FIREBASE_UNIVERSE_DOMAIN")
+        }
         
-        # Convert AttrDict to regular dict
-        firebase_dict = dict_from_attrdict(firebase_config)
-        
-        # Initialize Firebase with the configuration
-        cred = credentials.Certificate(firebase_dict)
+        cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
-
     return storage.bucket()
 
 # Use the function to initialize Firebase and get the bucket
 bucket = initialize_firebase()
+
+
+# When to deploy the app, you can use the following code snippet:
+# def initialize_firebase():
+#     # Initialize Firebase app (do this only once)
+#     if not firebase_admin._apps:
+#         # Use st.secrets to access the Firebase credentials
+#         cred = credentials.Certificate(st.secrets["firebase"])
+#         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
+
+# bucket = storage.bucket()
+
 
 
 st.title('GT7 Telemetry Data')
