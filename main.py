@@ -15,10 +15,14 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 # Initialize Firebase app (do this only once)
 @st.cache_resource
 def initialize_firebase():
+    # Initialize Firebase app (do this only once)
     if not firebase_admin._apps:
-        cred = credentials.Certificate("cred/serviceAccountKey.json")
+        # Use st.secrets to access the Firebase credentials
+        cred = credentials.Certificate(st.secrets["firebase"])
         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
-    return storage.bucket()
+
+bucket = storage.bucket()
+
 
 # Use the function to initialize Firebase and get the bucket
 bucket = initialize_firebase()
