@@ -14,18 +14,39 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 
 # Initialize Firebase app (do this only once)
 @st.cache_resource
+# def initialize_firebase():
+#     if not firebase_admin._apps:
+#         cred = credentials.Certificate("cred/serviceAccountKey.json")
+#         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
+#     return storage.bucket()
+
+# # Use the function to initialize Firebase and get the bucket
+# bucket = initialize_firebase()
+
+
+# When to deploy the app, you can use the following code snippet:
 def initialize_firebase():
-    # Initialize Firebase app (do this only once)
     if not firebase_admin._apps:
-        # Use st.secrets to access the Firebase credentials
-        cred = credentials.Certificate(st.secrets["firebase"])
+        # Load the Firebase configuration from Streamlit secrets
+        firebase_config = st.secrets["firebase"]
+        
+        # Create a temporary file to store the Firebase configuration
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+            json.dump(firebase_config, temp_file)
+            temp_file_path = temp_file.name
+
+        # Initialize Firebase with the temporary file
+        cred = credentials.Certificate(temp_file_path)
         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
+        
+        # Remove the temporary file
+        os.unlink(temp_file_path)
 
-bucket = storage.bucket()
-
+    return storage.bucket()
 
 # Use the function to initialize Firebase and get the bucket
 bucket = initialize_firebase()
+
 
 st.title('GT7 Telemetry Data')
 
