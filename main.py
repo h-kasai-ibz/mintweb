@@ -25,18 +25,21 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 # bucket = initialize_firebase()
 
 
-# Function to convert AttrDict to regular dict
+def dict_from_attrdict(attrdict):
+    """Convert an AttrDict to a regular dictionary recursively."""
+    if not isinstance(attrdict, dict):
+        return attrdict
+    return {k: dict_from_attrdict(v) for k, v in attrdict.items()}
+
+# Initialize Firebase app (do this only once)
 @st.cache_resource
 def initialize_firebase():
     if not firebase_admin._apps:
-        # Load the Firebase configuration from Streamlit secrets
-        firebase_config = st.secrets["firebase"]["my_project_settings"]
-        
-        # Convert the config back to a proper dictionary
-        firebase_dict = json.loads(json.dumps(firebase_config))
+        # Get the Firebase credentials from st.secrets and convert to dict
+        firebase_config = dict_from_attrdict(st.secrets["firebase"]["my_project_settings"])
         
         # Initialize Firebase with the configuration
-        cred = credentials.Certificate(firebase_dict)
+        cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
 
     return storage.bucket()
