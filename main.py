@@ -86,24 +86,12 @@ def load_data(file_name):
     df_dynamic['lap_index'] = df_dynamic.groupby('lap').cumcount()
     return df_static, df_dynamic
 
-def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_lap):
-    st.header("Overview")
-    # Display static data for both races
-    st.subheader("Race 1 Information")
-    st.write(df_static_1.head())
+def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2):
+    print_lap_times_table(df_static_1, df_static_2)
 
-    st.subheader("Race 2 Information")
-    st.write(df_static_2.head())
+    selected_lap = st.selectbox("Select a lap to compare:", 
+                                st.session_state.df_dynamic1['lap'].unique(), key="lap_select")
 
-    # Lap time comparison for both races
-    lap_times_1 = df_dynamic_1.groupby('lap')['current_lap_time'].max()
-    lap_times_2 = df_dynamic_2.groupby('lap')['current_lap_time'].max()
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=lap_times_1.index, y=lap_times_1, name='Race 1'))
-    fig.add_trace(go.Bar(x=lap_times_2.index, y=lap_times_2, name='Race 2'))
-    fig.update_layout(title='Lap Times Comparison', xaxis_title='Lap Number', yaxis_title='Lap Time', height=300)
-    st.plotly_chart(fig)
 
     # Prepare data for plotting
     selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap]
@@ -127,8 +115,48 @@ def plot_comparison(selected_lap_data_1, selected_lap_data_2, metric, metric_nam
                       height=300)
     st.plotly_chart(fig)
 
+def print_lap_times_table(df_static_1, df_static_2):
+    st.subheader("Lap Times Comparison")
+    
+    # Function to parse lap times from a single row
+    def parse_lap_times(row):
+        if isinstance(row['lap_times'], str):
+            return json.loads(row['lap_times'])
+        elif isinstance(row['lap_times'], dict):
+            return row['lap_times']
+        else:
+            st.error(f"Unexpected type for lap_times: {type(row['lap_times'])}")
+            return {}
+
+    # Parse lap times and extract usernames for both races
+    lap_times_1 = parse_lap_times(df_static_1.iloc[0])
+    lap_times_2 = parse_lap_times(df_static_2.iloc[0])
+    username_1 = df_static_1.iloc[0]['username']
+    username_2 = df_static_2.iloc[0]['username']
+
+    # Find the maximum number of laps
+    max_laps = max(len(lap_times_1), len(lap_times_2))
+
+    # Create a DataFrame for the lap times
+    data = []
+    for lap in range(1, max_laps + 1):
+        row = {
+            'Lap': lap,
+            username_1: lap_times_1.get(str(lap), 'N/A'),
+            username_2: lap_times_2.get(str(lap), 'N/A')
+        }
+        data.append(row)
+    
+    df_lap_times = pd.DataFrame(data)
+    
+    # Ensure the 'Lap' column is displayed as integers
+    df_lap_times['Lap'] = df_lap_times['Lap'].astype(int)
+    
+    # Display the DataFrame as a table without index
+    st.dataframe(df_lap_times.set_index('Lap'))
+
 # Main app logic
-st.subheader("Race 1")
+# st.subheader("Race 1")
 # Create two columns for user inputs
 col1, col2 = st.columns(2)
 
@@ -182,8 +210,7 @@ with col2:
 if 'df_static1' in st.session_state and 'df_dynamic1' in st.session_state and \
    'df_static2' in st.session_state and 'df_dynamic2' in st.session_state:
     st.header("Race Comparison")
-    selected_lap = st.selectbox("Select a lap to compare:", 
-                                st.session_state.df_dynamic1['lap'].unique(), key="lap_select")
+    
 
     visualize_data(st.session_state.df_static1, st.session_state.df_dynamic1, 
-                   st.session_state.df_static2, st.session_state.df_dynamic2, selected_lap)                    
+                   st.session_state.df_static2, st.session_state.df_dynamic2)                    
