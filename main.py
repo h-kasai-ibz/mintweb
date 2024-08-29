@@ -29,11 +29,11 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 @st.cache_resource
 def initialize_firebase():
     if not firebase_admin._apps:
-        # Load the Firebase configuration from Streamlit secrets
-        firebase_config = st.secrets["firebase"]["my_project_settings"]
+        # Get the Firebase credentials directly from st.secrets
+        firebase_cred = st.secrets["firebase"]["my_project_settings"]
         
-        # Initialize Firebase with the configuration
-        cred = credentials.Certificate(firebase_config)
+        # Initialize Firebase with the credentials
+        cred = credentials.Certificate(firebase_cred)
         firebase_admin.initialize_app(cred, {'storageBucket': 'mint-poc-p1.appspot.com'})
 
     return storage.bucket()
