@@ -5,6 +5,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from scipy.signal import find_peaks
 import firebase_admin
 from firebase_admin import credentials, storage
 import tempfile
@@ -93,33 +95,123 @@ def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, co
     fig.update_layout(title=title, xaxis_title='Lap Progress', yaxis_title=title, height=300)
     col.plotly_chart(fig, use_container_width=True)
 
-def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, metrics):
+def create_race_line_plot(df, selected_lap, username, color):
+    df_reduced = df.iloc[::4, :]  # Take every 5th point
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df_reduced['position_x'], 
+        y=df_reduced['position_z'],
+        mode='lines', 
+        name=f'{username}',
+        line=dict(color=color, width=2)
+    ))
+
+    add_optimized_speed_annotations(fig, df, color)
+
+    fig.update_layout(
+        title=f'Race Line: {username} - Lap {selected_lap}',
+        xaxis_title='X Position',
+        yaxis_title='Z Position',
+        showlegend=True,
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
+
+    fig.update_traces(hoverinfo="x+y+name", hoverlabel=dict(namelength=-1))
+
+    return fig
+
+def add_optimized_speed_annotations(fig, df, base_color):
+    speed = df['speed'].values
+    
+    # Use scipy's find_peaks for more efficient peak detection
+    peaks, _ = find_peaks(speed, distance=20, prominence=5)  # Adjust distance and prominence as needed
+    valleys, _ = find_peaks(-speed, distance=20, prominence=5)
+
+    high_color = 'darkred' if base_color == 'red' else 'darkblue'
+    low_color = 'lightcoral' if base_color == 'red' else 'lightskyblue'
+
+    # Limit the number of annotations
+    max_annotations = 15
+    peaks = peaks[:max_annotations]
+    valleys = valleys[:max_annotations]
+
+    # Combine peaks and valleys, sort by position
+    all_points = sorted([(i, speed[i], 'peak') for i in peaks] + 
+                        [(i, speed[i], 'valley') for i in valleys],
+                        key=lambda x: x[0])
+
+    for idx, (i, speed_val, point_type) in enumerate(all_points):
+        # Alternate above and below
+        y_offset = 0.02 * (-1 if idx % 2 == 0 else 1)
+        x_offset = 0  # You can adjust this if needed
+
+        # Determine text and color based on point type
+        if point_type == 'peak':
+            text = f"▴{speed_val:.0f}"
+            color = high_color
+        else:
+            text = f"▾{speed_val:.0f}"
+            color = low_color
+
+        fig.add_annotation(
+            x=df['position_x'].iloc[i] + x_offset,
+            y=df['position_z'].iloc[i] + y_offset,
+            text=text,
+            showarrow=False,
+            font=dict(color=color, size=10),
+            bgcolor="white",
+            opacity=0.8,
+            yshift=0 if idx % 2 == 0 else 20  # Shift even annotations up
+        )
+
+    if len(df) > 0:
+        fig.add_annotation(
+            x=df['position_x'].iloc[0],
+            y=df['position_z'].iloc[0],
+            text="START",
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            bgcolor="white",
+            opacity=0.8
+        )
+
+def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots):
     print_lap_times_table(df_static_1, df_static_2)
 
     selected_lap = st.selectbox("比較するラップを選択してください:", 
                                 df_dynamic_1['lap'].unique(), key="lap_select")
 
-    # データの準備
     selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap]
     selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap]
 
-    # ユーザー名の取得
     username1 = df_static_1['username'].iloc[0]
     username2 = df_static_2['username'].iloc[0]
 
-    # 2列のレイアウトを作成
-    for i in range(0, len(metrics), 2):
+    # Always display race line plots
+    col1, col2 = st.columns(2)
+    with col1:
+        race_line_1 = create_race_line_plot(selected_lap_data_1, selected_lap, username1, 'red')
+        st.plotly_chart(race_line_1, use_container_width=True)
+    
+    with col2:
+        race_line_2 = create_race_line_plot(selected_lap_data_2, selected_lap, username2, 'blue')
+        st.plotly_chart(race_line_2, use_container_width=True)
+
+    # Other plots
+    for i in range(0, len(selected_plots), 2):
         col1, col2 = st.columns(2)
         
-        # 左列のプロット
         create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'lap_index', 
-                               metrics[i][0], metrics[i][1], selected_lap, 
+                               selected_plots[i][0], selected_plots[i][1], selected_lap, 
                                col1, username1, username2)
         
-        # 右列のプロット（存在する場合）
-        if i + 1 < len(metrics):
+        if i + 1 < len(selected_plots):
             create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'lap_index', 
-                                   metrics[i+1][0], metrics[i+1][1], selected_lap, 
+                                   selected_plots[i+1][0], selected_plots[i+1][1], selected_lap, 
                                    col2, username1, username2)
             
 # Function to print lap times as a table
@@ -284,9 +376,9 @@ if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_stat
         # ('road_plane_m', '路面平面M')
     ]
 
-    # 全ての指標を使用してデータを可視化
+    # Race Line の可視化を含めて全てのデータを可視化
     visualize_data(st.session_state.df_static1, st.session_state.df_dynamic1, 
-                   st.session_state.df_static2, st.session_state.df_dynamic2,
-                   all_metrics)
+               st.session_state.df_static2, st.session_state.df_dynamic2,
+               all_metrics)
 else:
-    st.warning("両方のレースのデータをロードしてから、比較を行ってください。")
+    st.warning("両方のレースのデータをロードして、比較を行ってください。")
