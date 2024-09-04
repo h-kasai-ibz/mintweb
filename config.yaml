@@ -12,11 +12,3 @@ credentials:
       email: mixailota@gmail.com
       name: Misha
       password: $2b$12$eNitGVSl9.KGNk4Z1ksI3e0q.EneHCYn/dfYwlzR8GP0rzH/RAR3K
-    mishaneta2:
-      email: airesbrs@icloud.com
-      name: Misha2
-      password: $2b$12$8hJAJw5Lydl0Yg.g8S.2AOovr5lBIuGn7voPIlCrN76qOxjkP1EAu
-    mishaneta3:
-      email: mixailota3@gmail.com
-      name: misha
-      password: $2b$12$gwPus/k5gbrc15NqvoWGIupy19dzVQnblJcpBrPqrWyeH.G6LdJuy

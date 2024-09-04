@@ -269,33 +269,51 @@ elif st.session_state["authentication_status"] is None:
     st.markdown(css_layout_centered, unsafe_allow_html=True)
     st.warning('Please enter your username and password')
 
-    with st.form("signup_form"):
-        st.subheader("Sign Up")
-        new_username = st.text_input("Username")
-        new_name = st.text_input("Full Name")
-        new_email = st.text_input("Email")
-        new_password = st.text_input("Password", type="password")
-        confirm_password = st.text_input("Confirm Password", type="password")
-        signup_button = st.form_submit_button("Sign Up")
+    # Initialize 'show_signup' in session_state if it doesn't exist
+    if 'show_signup' not in st.session_state:
+        st.session_state['show_signup'] = False
 
-        if signup_button:
-            if new_password == confirm_password:
-                if new_username not in config['credentials']['usernames']:
-                    # Hash the password
-                    hashed_password = stauth.Hasher([new_password]).generate()[0]
-                    
-                    # Add new user to config
-                    config['credentials']['usernames'][new_username] = {
-                        'email': new_email,
-                        'name': new_name,
-                        'password': hashed_password
-                    }
-                    
-                    # Save updated config
-                    save_config(config)
-                    
-                    st.success("You have successfully signed up! Please log in.")
+    # "Sign Up" button
+    signup_page = st.button("Sign Up")
+
+    if signup_page:
+        # Set 'show_signup' to True when the button is clicked
+        st.session_state['show_signup'] = True
+
+    if st.session_state['show_signup']:
+        # Display the sign-up form
+        with st.form("signup_form"):
+            st.subheader("Sign Up")
+            new_username = st.text_input("Username")
+            new_name = st.text_input("Full Name")
+            new_email = st.text_input("Email")
+            new_password = st.text_input("Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            signup_button = st.form_submit_button("Submit")
+
+            if signup_button:
+                if new_password == confirm_password:
+                    if new_username not in config['credentials']['usernames']:
+                        # Hash the password
+                        hashed_password = stauth.Hasher([new_password]).generate()[0]
+
+                        # Add new user to config
+                        config['credentials']['usernames'][new_username] = {
+                            'email': new_email,
+                            'name': new_name,
+                            'password': hashed_password
+                        }
+
+                        # Save updated config
+                        save_config(config)
+
+                        st.success("You have successfully signed up! Please log in.")
+                        # Reset 'show_signup' to hide the form
+                        st.session_state['show_signup'] = False
+                    else:
+                        st.error("Username already exists. Please choose a different username.")
                 else:
-                    st.error("Username already exists. Please choose a different username.")
-            else:
-                st.error("Passwords do not match.")
+                    st.error("Passwords do not match.")
+    else:
+        # You can place your login form here or other content
+        pass
