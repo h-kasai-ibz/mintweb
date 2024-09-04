@@ -95,86 +95,88 @@ def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, co
     fig.update_layout(title=title, xaxis_title='Lap Progress', yaxis_title=title, height=300)
     col.plotly_chart(fig, use_container_width=True)
 
-def create_race_line_plot(df, selected_lap, username, color):
-    df_reduced = df.iloc[::4, :]  # Take every 5th point
-
+def create_comparison_race_line_plot(df1, df2, selected_lap, username1, username2):
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
-        x=df_reduced['position_x'], 
-        y=df_reduced['position_z'],
+        x=df1['position_x'],
+        y=df1['position_z'],
         mode='lines', 
-        name=f'{username}',
-        line=dict(color=color, width=2)
+        name=f'{username1}',
+        line=dict(color='red', width=2)
     ))
 
-    add_optimized_speed_annotations(fig, df, color)
+    fig.add_trace(go.Scatter(
+        x=df2['position_x'],
+        y=df2['position_z'],
+        mode='lines', 
+        name=f'{username2}',
+        line=dict(color='blue', width=2)
+    ))
 
     fig.update_layout(
-        title=f'Race Line: {username} - Lap {selected_lap}',
-        xaxis_title='X Position',
-        yaxis_title='Z Position',
+        title=f'Race Line Comparison',
+        # xaxis_title='X Position',
+        # yaxis_title='Z Position',
         showlegend=True,
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
         margin=dict(l=0, r=0, t=30, b=0),
     )
 
-    fig.update_traces(hoverinfo="x+y+name", hoverlabel=dict(namelength=-1))
+    return fig
+
+def create_individual_race_line_plot(df, selected_lap, username, color):
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df['position_x'],
+        y=df['position_z'],
+        mode='lines', 
+        name=username,
+        line=dict(color=color, width=2)
+    ))
+
+    add_speed_annotations(fig, df, color)
+
+    fig.update_layout(
+        title=f'{username} Race Line',
+        # xaxis_title='X Position',
+        # yaxis_title='Z Position',
+        showlegend=False,
+        yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
 
     return fig
 
-def add_optimized_speed_annotations(fig, df, base_color):
+def add_speed_annotations(fig, df, base_color):
     speed = df['speed'].values
     
-    # Use scipy's find_peaks for more efficient peak detection
-    peaks, _ = find_peaks(speed, distance=20, prominence=5)  # Adjust distance and prominence as needed
-    valleys, _ = find_peaks(-speed, distance=20, prominence=5)
+    peaks, _ = find_peaks(speed, distance=10, prominence=1)
+    valleys, _ = find_peaks(-speed, distance=10, prominence=1)
 
     high_color = 'darkred' if base_color == 'red' else 'darkblue'
     low_color = 'lightcoral' if base_color == 'red' else 'lightskyblue'
 
-    # Limit the number of annotations
-    max_annotations = 15
-    peaks = peaks[:max_annotations]
-    valleys = valleys[:max_annotations]
-
-    # Combine peaks and valleys, sort by position
-    all_points = sorted([(i, speed[i], 'peak') for i in peaks] + 
-                        [(i, speed[i], 'valley') for i in valleys],
-                        key=lambda x: x[0])
-
-    for idx, (i, speed_val, point_type) in enumerate(all_points):
-        # Alternate above and below
-        y_offset = 0.02 * (-1 if idx % 2 == 0 else 1)
-        x_offset = 0  # You can adjust this if needed
-
-        # Determine text and color based on point type
-        if point_type == 'peak':
-            text = f"▴{speed_val:.0f}"
-            color = high_color
-        else:
-            text = f"▾{speed_val:.0f}"
-            color = low_color
-
+    for i in peaks:
         fig.add_annotation(
-            x=df['position_x'].iloc[i] + x_offset,
-            y=df['position_z'].iloc[i] + y_offset,
-            text=text,
+            x=df['position_x'].iloc[i],
+            y=df['position_z'].iloc[i],
+            text=f"▴{speed[i]:.0f}",
             showarrow=False,
-            font=dict(color=color, size=10),
+            font=dict(color=high_color, size=10),
             bgcolor="white",
-            opacity=0.8,
-            yshift=0 if idx % 2 == 0 else 20  # Shift even annotations up
+            opacity=0.8
         )
 
-    if len(df) > 0:
+    for i in valleys:
         fig.add_annotation(
-            x=df['position_x'].iloc[0],
-            y=df['position_z'].iloc[0],
-            text="START",
+            x=df['position_x'].iloc[i],
+            y=df['position_z'].iloc[i],
+            text=f"{speed[i]:.0f}▾",
             showarrow=False,
-            font=dict(size=12, color="black"),
+            font=dict(color=low_color, size=10),
             bgcolor="white",
             opacity=0.8
         )
@@ -191,17 +193,20 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     username1 = df_static_1['username'].iloc[0]
     username2 = df_static_2['username'].iloc[0]
 
-    # Always display race line plots
-    col1, col2 = st.columns(2)
-    with col1:
-        race_line_1 = create_race_line_plot(selected_lap_data_1, selected_lap, username1, 'red')
-        st.plotly_chart(race_line_1, use_container_width=True)
-    
-    with col2:
-        race_line_2 = create_race_line_plot(selected_lap_data_2, selected_lap, username2, 'blue')
-        st.plotly_chart(race_line_2, use_container_width=True)
+    # Create race line plots
+    comparison_plot = create_comparison_race_line_plot(
+        selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
+    )
+    individual_plot_1 = create_individual_race_line_plot(
+        selected_lap_data_1, selected_lap, username1, 'red'
+    )
+    individual_plot_2 = create_individual_race_line_plot(
+        selected_lap_data_2, selected_lap, username2, 'blue'
+    )
 
-    # Other plots
+
+
+    # Other comparison plots (remain the same)
     for i in range(0, len(selected_plots), 2):
         col1, col2 = st.columns(2)
         
@@ -214,6 +219,17 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
                                    selected_plots[i+1][0], selected_plots[i+1][1], selected_lap, 
                                    col2, username1, username2)
             
+
+    # Display race line plots in three columns
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.plotly_chart(comparison_plot, use_container_width=True)
+    with col2:
+        st.plotly_chart(individual_plot_1, use_container_width=True)
+    with col3:
+        st.plotly_chart(individual_plot_2, use_container_width=True)
+
+
 # Function to print lap times as a table
 def print_lap_times_table(df_static_1, df_static_2):
     st.subheader("Lap Times Comparison")
