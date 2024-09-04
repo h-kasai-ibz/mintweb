@@ -42,10 +42,10 @@ authenticator = stauth.Authenticate(
 authenticator.login()
 if st.session_state["authentication_status"]:
     ## ログイン成功
-    with st.sidebar:
-        st.markdown(f'## Welcome *{st.session_state["name"]}*')
-        authenticator.logout('Logout', 'sidebar')
-        st.divider()
+    # with st.sidebar:
+    st.markdown(f'### Welcome *{st.session_state["name"]}*')
+    authenticator.logout('Logout', 'main')
+    st.divider()
 
     @st.cache_resource
     def initialize_firebase():
@@ -117,79 +117,86 @@ if st.session_state["authentication_status"]:
 
     # Main app logic
     def handle_race_input(col, race_number):
-        with col:
-            st.markdown(
-                f"""
-                <style>
-                    div[data-testid="column"] > div:has(div.stButton) {{
-                        background-color: white;
-                        padding: 32px;
-                        border-radius: 8px;
-                        margin-top: 32px;
-                        margin-bottom: 16px;
-                        border: 1px solid #dcdcdc;
-                    }}
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
+      with col:
+          st.markdown(
+              f"""
+              <style>
+                  div[data-testid="column"] > div:has(div.stButton) {{
+                      background-color: white;
+                      padding: 32px 64px;
+                      border-radius: 8px;
+                      margin-top: 32px;
+                      margin-bottom: 16px;
+                      border: 1px solid #dcdcdc;
+                  }}
+              </style>
+              """,
+              unsafe_allow_html=True
+          )
 
-            st.subheader(f"Race {race_number}")
-            
-            # Custom CSS for text input
-            input_style = """
-            <style>
-            div[data-baseweb="input"] input {
-                # background-color: white !important;
-            }
-            div[data-baseweb="input"] {
-                max-width: 400px !important;
-            }
-            div[data-baseweb="select"] {
-                width: 400px !important;
-                max-width: 100% !important;
-                # background-color: white !important;
-            }
-            div[data-baseweb="stNotificationContentSuccess"] {
-                width: 400px !important;
-                # background-color: white !important;
-            }
-            div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
-                border-color: #80bdff !important;
-                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
-            }
-            </style>
-            """
-            st.markdown(input_style, unsafe_allow_html=True)
+          st.subheader(f"Race {race_number}")
+          
+          # Custom CSS for text input
+          input_style = """
+          <style>
+          div[data-baseweb="input"] {
+              max-width: 400px !important;
+          }
+          div[data-baseweb="select"] {
+              max-width: 400px !important;
+          }
+          div[data-baseweb="stNotificationContentSuccess"] {
+              width: 400px !important;
+              # background-color: white !important;
+          }
+          div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
+              border-color: #80bdff !important;
+              box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
+          }
+          div[data-testid="stForm"] {
+                      border: none;
+                      max-width: 400px;
+                      min-height: 240px;
+                      padding: 0;
+                  }
+          div[data-testid="stVerticalBlockBorderWrapper"] {
+                      margin: 0;
+                  }
+          </style>
+          """
+          st.markdown(input_style, unsafe_allow_html=True)
 
-            # st.subheader(f"Race {race_number}")
-            username = st.text_input(f"Enter username for Race {race_number}:")
-            submit_username = st.button(f"Submit Username for Race {race_number}")
+          with st.form(key=f'race_form_{race_number}'):
+              username = st.text_input(f"Enter username for Race {race_number}:", key=f'username_{race_number}')
+              submit_username = st.form_submit_button(f"Submit Username for Race {race_number}")
 
-            if submit_username and username:
-                user_races = find_user_races(username)
-                if not user_races:
-                    st.error(f"No data found for username: {username}")
-                else:
-                    st.success(f"Found {len(user_races)} races for {username}")
-                    st.session_state[f'user_races{race_number}'] = user_races
+          
+          # with st.form(key=f'user_form_{race_number}'):
 
-            if f'user_races{race_number}' in st.session_state:
-                selected_race = st.selectbox(f"Choose a race to visualize for Race {race_number}:", 
-                                             st.session_state[f'user_races{race_number}'], 
-                                             key=f"race_select{race_number}")
+              if submit_username and username:
+                  user_races = find_user_races(username)
+                  if not user_races:
+                      st.error(f"No data found for username: {username}")
+                  else:
+                      st.success(f"Found {len(user_races)} races for {username}")
+                      st.session_state[f'user_races{race_number}'] = user_races
 
-                if selected_race:
-                    load_race_button = st.button(f"Load Selected Race {race_number}")
+              if f'user_races{race_number}' in st.session_state:
+                  selected_race = st.selectbox(f"Choose a race to visualize for Race {race_number}:", 
+                                               st.session_state[f'user_races{race_number}'], 
+                                               key=f"race_select{race_number}")
 
-                    if load_race_button:
-                        data_load_state = st.text(f'Loading data for Race {race_number}...')
-                        df_static, df_dynamic = load_data(selected_race)
-                        st.session_state[f'df_static{race_number}'] = df_static
-                        st.session_state[f'df_dynamic{race_number}'] = df_dynamic
-                        data_load_state.text(f'Loading data for Race {race_number}...done!')
+                  if selected_race:
+                      load_race_button = st.form_submit_button(f"Load Selected Race {race_number}")
 
-        return username, selected_race if 'selected_race' in locals() else None
+                      if load_race_button:
+                          data_load_state = st.text(f'Loading data for Race {race_number}...')
+                          df_static, df_dynamic = load_data(selected_race)
+                          st.session_state[f'df_static{race_number}'] = df_static
+                          st.session_state[f'df_dynamic{race_number}'] = df_dynamic
+                          data_load_state.text(f'Loading data for Race {race_number}...done!')
+
+      return username, selected_race if 'selected_race' in locals() else None
 
     # Usage in main app logic
     col1, col2 = st.columns(2)
@@ -250,5 +257,12 @@ elif st.session_state["authentication_status"] is False:
 
 elif st.session_state["authentication_status"] is None:
     ## デフォルト
+    css_layout_centered = """
+    <style>
+        .block-container {
+            max-width: 800px;
+        }
+    </style>
+    """
+    st.markdown(css_layout_centered, unsafe_allow_html=True)
     st.warning('Please enter your username and password')
-    
