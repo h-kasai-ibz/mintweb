@@ -26,6 +26,11 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 load_dotenv()
 st.set_page_config(layout="wide")
 
+# Function to save config
+def save_config(config):
+    with open('config.yaml', 'w') as file:
+        yaml.dump(config, file, default_flow_style=False)
+
 # Load configuration file
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
@@ -170,9 +175,6 @@ if st.session_state["authentication_status"]:
               username = st.text_input(f"Enter username for Race {race_number}:", key=f'username_{race_number}')
               submit_username = st.form_submit_button(f"Submit Username for Race {race_number}")
 
-          
-          # with st.form(key=f'user_form_{race_number}'):
-
               if submit_username and username:
                   user_races = find_user_races(username)
                   if not user_races:
@@ -266,3 +268,34 @@ elif st.session_state["authentication_status"] is None:
     """
     st.markdown(css_layout_centered, unsafe_allow_html=True)
     st.warning('Please enter your username and password')
+
+    with st.form("signup_form"):
+        st.subheader("Sign Up")
+        new_username = st.text_input("Username")
+        new_name = st.text_input("Full Name")
+        new_email = st.text_input("Email")
+        new_password = st.text_input("Password", type="password")
+        confirm_password = st.text_input("Confirm Password", type="password")
+        signup_button = st.form_submit_button("Sign Up")
+
+        if signup_button:
+            if new_password == confirm_password:
+                if new_username not in config['credentials']['usernames']:
+                    # Hash the password
+                    hashed_password = stauth.Hasher([new_password]).generate()[0]
+                    
+                    # Add new user to config
+                    config['credentials']['usernames'][new_username] = {
+                        'email': new_email,
+                        'name': new_name,
+                        'password': hashed_password
+                    }
+                    
+                    # Save updated config
+                    save_config(config)
+                    
+                    st.success("You have successfully signed up! Please log in.")
+                else:
+                    st.error("Username already exists. Please choose a different username.")
+            else:
+                st.error("Passwords do not match.")
