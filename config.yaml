@@ -1,0 +1,14 @@
+cookie:
+  expiry_days: 1
+  key: some_signature_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    kasai:
+      email: hideyuki.kasai@i-bees.jp
+      name: Hideki Kasai
+      password: $2b$12$/WtICPbBKXTXHhHLuPJiv.ah4oW8J5GkK7ka./EumVQ/K6VAyJUnm
+    mishaneta:
+      email: mixailota@gmail.com
+      name: Misha
+      password: $2b$12$eNitGVSl9.KGNk4Z1ksI3e0q.EneHCYn/dfYwlzR8GP0rzH/RAR3K
