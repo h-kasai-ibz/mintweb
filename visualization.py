@@ -59,10 +59,10 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_star
     speed = df['speed'].values
     
     # Simple peak and valley detection
-    peaks, _ = find_peaks(speed, distance=300, prominence=1)
-    valleys, _ = find_peaks(-speed, distance=300, prominence=1)
+    peaks, _ = find_peaks(speed, distance=480, prominence=1)
+    valleys, _ = find_peaks(-speed, distance=480, prominence=1)
 
-    max_annotations = 25
+    max_annotations = 40
     peaks = peaks[:max_annotations]
     valleys = valleys[:max_annotations]
 
