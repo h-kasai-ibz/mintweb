@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from scipy.signal import find_peaks
 
@@ -70,29 +71,33 @@ def create_individual_race_line_plot(df, selected_lap, username, color):
 def create_combined_annotated_race_line_plot(df1, df2, selected_lap, username1, username2):
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(
-        x=df1['position_x'],
-        y=df1['position_z'],
-        mode='lines', 
-        name=f'{username1}',
-        line=dict(color='red', width=2)
-    ))
+    def create_user_trace(df, username, color, line_width, opacity=1):
+        trace = go.Scatter(
+            x=df['position_x'],
+            y=df['position_z'],
+            mode='lines',
+            name=username,
+            line=dict(color=color, width=line_width),
+            opacity=opacity,
+            text=[f"Throttle: {t:.2f}, Brake: {b:.2f}" for t, b in zip(df['throttle'], df['brake'])],
+            hoverinfo='text'
+        )
+        return trace
 
-    fig.add_trace(go.Scatter(
-        x=df2['position_x'],
-        y=df2['position_z'],
-        mode='lines', 
-        name=f'{username2}',
-        line=dict(color='blue', width=2)
-    ))
+    # Add trace for user 1 (thinner line)
+    fig.add_trace(create_user_trace(df1, username1, 'blue', 3))
 
-    add_speed_annotations(fig, df1, 'red', 24, -24)  # User 1: offset 10px to the left
-    add_speed_annotations(fig, df2, 'blue', -24, 24)  # User 2: offset 10px to the right
+    # Add trace for user 2 (thicker, semi-transparent line)
+    fig.add_trace(create_user_trace(df2, username2, 'red', 5, opacity=0.4))
+
+    # Add speed annotations
+    add_speed_annotations(fig, df1, 'red', 5, 5, add_start=True)  # User 1: offset 5px to the left and up
+    add_speed_annotations(fig, df2, 'blue', -5, -5, add_start=False)  # User 2: offset 5px to the right and down
 
     fig.update_layout(
         title=f'Combined Annotated Race Lines: Lap {selected_lap}',
-        xaxis_title='X Position',
-        yaxis_title='Z Position',
+        # xaxis_title='X Position',
+        # yaxis_title='Z Position',
         showlegend=True,
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
@@ -101,56 +106,38 @@ def create_combined_annotated_race_line_plot(df1, df2, selected_lap, username1, 
 
     return fig
 
-def add_speed_annotations(fig, df, base_color, y_offset=0, x_offset=0):
+
+def add_speed_annotations(fig, df, color, x_offset, y_offset, add_start=False):
     speed = df['speed'].values
     
+    # Simple peak and valley detection
     peaks, _ = find_peaks(speed, distance=10, prominence=1)
     valleys, _ = find_peaks(-speed, distance=10, prominence=1)
 
-    # high_color = 'darkred' if base_color == 'red' else 'darkblue'
-    high_color = 'darkred' if base_color == 'red' else 'darkblue'
-    low_color = 'darkred' if base_color == 'red' else 'darkblue'
-
-    # Limit the number of annotations
-    max_annotations = 30
-    peaks = peaks[:max_annotations]
-    valleys = valleys[:max_annotations]
-
     for i in peaks:
         fig.add_annotation(
-            x=df['position_x'].iloc[i],
+            x=df['position_x'].iloc[i] + x_offset,
             y=df['position_z'].iloc[i] + y_offset,
-            # text=f"{username1}: ▴{speed[i]:.0f}",
             text=f"▴{speed[i]:.0f}",
             showarrow=False,
-            font=dict(color=high_color, size=12),
+            font=dict(color=color, size=10),
             bgcolor="white",
-            opacity=0.8,
-            xshift=x_offset  # Add horizontal offset
+            opacity=0.8
         )
 
     for i in valleys:
         fig.add_annotation(
-            x=df['position_x'].iloc[i],
+            x=df['position_x'].iloc[i] + x_offset,
             y=df['position_z'].iloc[i] + y_offset,
             text=f"{speed[i]:.0f}▾",
-            # text=f"{username1}: {speed[i]:.0f}▾",
             showarrow=False,
-            font=dict(color=low_color, size=12),
-            bgcolor="white",
-            opacity=0.8,
-            xshift=x_offset  # Add horizontal offset
-        )
-    if len(df) > 0:
-        fig.add_annotation(
-            x=df['position_x'].iloc[0],
-            y=df['position_z'].iloc[0],
-            text="START",
-            showarrow=False,
-            font=dict(size=12, color="black"),
+            font=dict(color=color, size=10),
             bgcolor="white",
             opacity=0.8
         )
+
+    if add_start and len(df) > 0:
+        fig.add_annotation(x=df['position_x'].iloc[0], y=df['position_z'].iloc[0], text="START", showarrow=False)
 
 # Function to print lap times as a table
 def print_lap_times_table(df_static_1, df_static_2):
@@ -219,20 +206,13 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
         selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
     )
 
-    # Display race line plots in four columns
-    st.subheader("Race Line Visualizations")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.plotly_chart(comparison_plot, use_container_width=True)
-    with col2:
-        st.plotly_chart(individual_plot_1, use_container_width=True)
-    with col3:
-        st.plotly_chart(individual_plot_2, use_container_width=True)
-    with col4:
-        st.plotly_chart(combined_annotated_plot, use_container_width=True)
+    # Race Lineの可視化
+    race_line_plot = create_combined_annotated_race_line_plot(
+    selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
+    )
+    st.plotly_chart(race_line_plot, use_container_width=True)
 
-    # Other comparison plots (remain the same)
-    st.subheader("Other Comparisons")
+    # 他の可視化（2列のレイアウト）
     for i in range(0, len(selected_plots), 2):
         col1, col2 = st.columns(2)
         
