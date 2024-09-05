@@ -208,7 +208,7 @@ if st.session_state["authentication_status"]:
 
 
     if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_static2', 'df_dynamic2']):
-        st.header("レース比較")
+        st.subheader("レース比較")
 
         # 全ての指標のリスト
         all_metrics = [

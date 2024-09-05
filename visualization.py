@@ -141,7 +141,7 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, add_start=False):
 
 # Function to print lap times as a table
 def print_lap_times_table(df_static_1, df_static_2):
-    st.subheader("Lap Times Comparison")
+    st.markdown("Lap Times Comparison")
     
     # Function to parse lap times from a single row
     def parse_lap_times(row):
