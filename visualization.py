@@ -62,9 +62,9 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_star
     peaks, _ = find_peaks(speed, distance=480, prominence=1)
     valleys, _ = find_peaks(-speed, distance=480, prominence=1)
 
-    max_annotations = 40
+    max_annotations = 20
     peaks = peaks[:max_annotations]
-    valleys = valleys[:max_annotations]
+    valleys = valleys[:max_annotations] 
 
     for i in peaks:
         fig.add_annotation(
@@ -92,8 +92,7 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_star
         fig.add_annotation(x=df['position_x'].iloc[0], y=df['position_z'].iloc[0], text="START", showarrow=False)
 
 
-# new plot
-
+# new plot with course track
 def create_detail_race_line(df1, df2, selected_lap, username1, username2):
     df1_reduced = df1.iloc[::10, :]  # Take every 10th point
     df2_reduced = df2.iloc[::10, :]
@@ -199,10 +198,10 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
 
 
     # Race Lineの可視化
-    # race_line_plot = create_combined_annotated_race_line_plot(
-    # selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
-    # )
-    # st.plotly_chart(race_line_plot, use_container_width=True)
+    race_line_plot = create_combined_annotated_race_line_plot(
+    selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
+    )
+    st.plotly_chart(race_line_plot, use_container_width=True)
 
 
     # Race Lineの可視化
