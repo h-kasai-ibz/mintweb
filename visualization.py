@@ -1,9 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
 import plotly.graph_objects as go
 from scipy.signal import find_peaks
+from calc_course import get_course_tracks, get_course_track
 
+
+
+course_track_directory = 'course_track'
 
 def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, col, username1, username2):
     fig = go.Figure()
@@ -94,8 +99,8 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_star
 
 # new plot with course track
 def create_detail_race_line(df1, df2, selected_lap, username1, username2):
-    df1_reduced = df1.iloc[::10, :]  # Take every 10th point
-    df2_reduced = df2.iloc[::10, :]
+    df1_reduced = df1.iloc[::2, :]  # Take every 10th point
+    df2_reduced = df2.iloc[::2, :]
     fig = go.Figure()
 
     def assign_color(throttle, brake):
@@ -125,7 +130,7 @@ def create_detail_race_line(df1, df2, selected_lap, username1, username2):
     add_user_trace(df1_reduced, username1, line_width=3)
 
     # Add trace for user 2 (wider, semi-transparent line)
-    add_user_trace(df2_reduced, username2, line_width=8, opacity=0.4)
+    add_user_trace(df2_reduced, username2, line_width=3, opacity=0.4)
 
     # Add speed annotations
     add_speed_annotations(fig, df1, 'gray', 5, 5, username1, add_start=True)  # User 1: offset 5px to the right and up
@@ -142,6 +147,40 @@ def create_detail_race_line(df1, df2, selected_lap, username1, username2):
 
     return fig
 
+def create_detail_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_lap, username1, username2, course_track_data, width=800, height=600):
+    # Create a new figure for the combined plot
+    race_line_fig = go.Figure()
+
+    # First, add the course track (road) plot behind everything else
+    course_track_fig = get_course_track(course_track_data)
+    for trace in course_track_fig['data']:
+        race_line_fig.add_trace(trace)
+
+    # Now, add the race line plot on top of the course track
+    race_line_detail = create_detail_race_line(lap_data_1, lap_data_2, selected_lap, username1, username2)
+    for trace in race_line_detail['data']:
+        race_line_fig.add_trace(trace)
+
+    # Update layout for the combined plot (if necessary)
+    race_line_fig.update_layout(
+        title=f"Race Line and Course Track for Lap {selected_lap}",
+        # xaxis_title="X Axis",
+        # yaxis_title="Y Axis",
+        showlegend=False,
+        autosize=False,  # Disable autosizing so that the specified width and height are used
+        width=width,   # Set the plot width
+        height=height, # Set the plot height
+        yaxis_scaleanchor="x",  # Maintain aspect ratio by linking x and y axis scaling
+        xaxis=dict(
+            scaleanchor="y",   # Ensures the plot maintains its aspect ratio
+        )
+    )
+
+    # Add speed annotations
+    add_speed_annotations(race_line_fig, lap_data_1, 'red', 5, 5, username1, add_start=True)  # User 1: offset 5px to the left and up
+    add_speed_annotations(race_line_fig, lap_data_2, 'blue', -5, -5, username2, add_start=False)  # User 2: offset 5px to the right and down
+
+    return race_line_fig
 
 # Function to print lap times as a table
 def print_lap_times_table(df_static_1, df_static_2):
@@ -184,35 +223,43 @@ def print_lap_times_table(df_static_1, df_static_2):
     # Display the DataFrame as a table without index
     st.dataframe(df_lap_times.set_index('Lap'))
 
+
 def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots):
+    # Display lap times table
     print_lap_times_table(df_static_1, df_static_2)
 
+    # Lap selection dropdown
     selected_lap = st.selectbox("比較するラップを選択してください:", 
                                 df_dynamic_1['lap'].unique(), key="lap_select")
+    
+    # Get the list of available course track JSON files (filenames only)
+    course_track_options = get_course_tracks(course_track_directory)
 
+    # Let the user select the course track from the available options
+    selected_course_track_file = st.selectbox("表示するコーストラックを選択してください:",
+                                              course_track_options, key="track_select")
+
+    # Load the selected course track JSON data
+    selected_course_track_data = os.path.join(course_track_directory, selected_course_track_file)
+    course_track_fig = get_course_track(selected_course_track_data)
+    # st.plotly_chart(course_track_fig)
+
+    # Filter data for the selected lap
     selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap]
     selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap]
 
+    # Get usernames from static data
     username1 = df_static_1['username'].iloc[0]
     username2 = df_static_2['username'].iloc[0]
 
-
-    # Race Lineの可視化
-    race_line_plot = create_combined_annotated_race_line_plot(
-    selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
+    # Visualize race line with course track
+    detail_race_line_plot_with_coursetrack = create_detail_race_line_with_coursetrack(
+        selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2, selected_course_track_data, width=600, height=600
     )
-    st.plotly_chart(race_line_plot, use_container_width=True)
+    st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
+    st.write(f"表示されているコース: **{selected_course_track_file}**")
 
-
-    # Race Lineの可視化
-    detail_race_line_plot = create_detail_race_line(
-    selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2
-    )
-    st.plotly_chart(detail_race_line_plot, use_container_width=True)
-
-
-
-    # 他の可視化（2列のレイアウト）
+    # Visualize other plots in two-column layout
     for i in range(0, len(selected_plots), 2):
         col1, col2 = st.columns(2)
         
@@ -224,4 +271,3 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
             create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'lap_index', 
                                    selected_plots[i+1][0], selected_plots[i+1][1], selected_lap, 
                                    col2, username1, username2)
-

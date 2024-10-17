@@ -272,8 +272,8 @@ def handle_race_input(col, race_number, json_file_path):
 col1, col2 = st.columns(2)
 
 # Specify the paths to your two JSON files here
-json_file_1 = "data/User01_20240829_1548.json"
-json_file_2 = "data/User02_20240829_1555.json"
+json_file_1 = "data/PostPro1018_20241018_0713.json"
+json_file_2 = "data/PostPro1019_20241018_0714.json"
 
 username1, selected_race1 = handle_race_input(col1, 1, json_file_1)
 username2, selected_race2 = handle_race_input(col2, 2, json_file_2)
