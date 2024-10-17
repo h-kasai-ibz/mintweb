@@ -130,7 +130,7 @@ def create_detail_race_line(df1, df2, selected_lap, username1, username2):
     add_user_trace(df1_reduced, username1, line_width=3)
 
     # Add trace for user 2 (wider, semi-transparent line)
-    add_user_trace(df2_reduced, username2, line_width=3, opacity=0.4)
+    add_user_trace(df2_reduced, username2, line_width=10, opacity=0.3)
 
     # Add speed annotations
     add_speed_annotations(fig, df1, 'gray', 5, 5, username1, add_start=True)  # User 1: offset 5px to the right and up
@@ -228,25 +228,44 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     # Display lap times table
     print_lap_times_table(df_static_1, df_static_2)
 
-    # Lap selection dropdown
-    selected_lap = st.selectbox("比較するラップを選択してください:", 
-                                df_dynamic_1['lap'].unique(), key="lap_select")
+    # Lap selection for race 1
+    selected_lap_1 = st.selectbox(f"{df_static_1['username'].iloc[0]} のラップを選択してください:", 
+                                  df_dynamic_1['lap'].unique(), key="lap_select_1")
+    
+    # Lap selection for race 2
+    selected_lap_2 = st.selectbox(f"{df_static_2['username'].iloc[0]} のラップを選択してください:", 
+                                  df_dynamic_2['lap'].unique(), key="lap_select_2")
     
     # Get the list of available course track JSON files (filenames only)
     course_track_options = get_course_tracks(course_track_directory)
+
+    # Validate if there are course track options available
+    if not course_track_options:
+        st.error("No course track files found.")
+        return
 
     # Let the user select the course track from the available options
     selected_course_track_file = st.selectbox("表示するコーストラックを選択してください:",
                                               course_track_options, key="track_select")
 
+    # Validate the selected course track file
+    if not selected_course_track_file:
+        st.error("Please select a valid course track.")
+        return
+
     # Load the selected course track JSON data
     selected_course_track_data = os.path.join(course_track_directory, selected_course_track_file)
-    course_track_fig = get_course_track(selected_course_track_data)
-    # st.plotly_chart(course_track_fig)
 
-    # Filter data for the selected lap
-    selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap]
-    selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap]
+    # Verify if the course track file exists
+    if not os.path.exists(selected_course_track_data):
+        st.error(f"The selected course track file {selected_course_track_file} does not exist.")
+        return
+
+    course_track_fig = get_course_track(selected_course_track_data)
+    
+    # Filter data for the selected lap for each race
+    selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_1]
+    selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_2]
 
     # Get usernames from static data
     username1 = df_static_1['username'].iloc[0]
@@ -254,7 +273,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
 
     # Visualize race line with course track
     detail_race_line_plot_with_coursetrack = create_detail_race_line_with_coursetrack(
-        selected_lap_data_1, selected_lap_data_2, selected_lap, username1, username2, selected_course_track_data, width=600, height=600
+        selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, selected_course_track_data, width=600, height=600
     )
     st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
     st.write(f"表示されているコース: **{selected_course_track_file}**")
@@ -264,10 +283,10 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
         col1, col2 = st.columns(2)
         
         create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'lap_index', 
-                               selected_plots[i][0], selected_plots[i][1], selected_lap, 
+                               selected_plots[i][0], selected_plots[i][1], selected_lap_1, 
                                col1, username1, username2)
         
         if i + 1 < len(selected_plots):
             create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'lap_index', 
-                                   selected_plots[i+1][0], selected_plots[i+1][1], selected_lap, 
+                                   selected_plots[i+1][0], selected_plots[i+1][1], selected_lap_1, 
                                    col2, username1, username2)
