@@ -94,11 +94,11 @@ def calculate_average(df):
 
 @st.cache_data
 def load_data(file_name):
-    blob = bucket.blob(file_name)
-    _, temp_local_filename = tempfile.mkstemp()
-    blob.download_to_filename(temp_local_filename)
+    # blob = bucket.blob(file_name)
+    # _, temp_local_filename = tempfile.mkstemp()
+    # blob.download_to_filename(temp_local_filename)
 
-    with open(temp_local_filename, 'r') as file:
+    with open(file_name, 'r') as file:
         data = json.load(file)
 
     # Extract static data
@@ -121,91 +121,164 @@ def load_data(file_name):
     
     return df_static, df_dynamic
 
-# Main app logic
-def handle_race_input(col, race_number):
-  with col:
-      st.markdown(
-          f"""
-          <style>
-              div[data-testid="column"] > div:has(div.stButton) {{
-                  background-color: white;
-                  padding: 32px 64px;
-                  border-radius: 8px;
-                  margin-top: 32px;
-                  margin-bottom: 16px;
-                  border: 1px solid #dcdcdc;
-              }}
-          </style>
-          """,
-          unsafe_allow_html=True
-      )
+# # Main app logic
+# def handle_race_input(col, race_number):
+#   with col:
+#       st.markdown(
+#           f"""
+#           <style>
+#               div[data-testid="column"] > div:has(div.stButton) {{
+#                   background-color: white;
+#                   padding: 32px 64px;
+#                   border-radius: 8px;
+#                   margin-top: 32px;
+#                   margin-bottom: 16px;
+#                   border: 1px solid #dcdcdc;
+#               }}
+#           </style>
+#           """,
+#           unsafe_allow_html=True
+#       )
 
-      st.subheader(f"Race {race_number}")
+#       st.subheader(f"Race {race_number}")
       
-      # Custom CSS for text input
-      input_style = """
-      <style>
-      div[data-baseweb="input"] {
-          max-width: 400px !important;
-      }
-      div[data-baseweb="select"] {
-          max-width: 400px !important;
-      }
-      div[data-baseweb="stNotificationContentSuccess"] {
-          width: 400px !important;
-          # background-color: white !important;
-      }
-      div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
-          border-color: #80bdff !important;
-          box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
-      }
-      div[data-testid="stForm"] {
-                  border: none;
-                  max-width: 400px;
-                  min-height: 240px;
-                  padding: 0;
-              }
-      div[data-testid="stVerticalBlockBorderWrapper"] {
-                  margin: 0;
-              }
-      </style>
-      """
-      st.markdown(input_style, unsafe_allow_html=True)
+#       # Custom CSS for text input
+#       input_style = """
+#       <style>
+#       div[data-baseweb="input"] {
+#           max-width: 400px !important;
+#       }
+#       div[data-baseweb="select"] {
+#           max-width: 400px !important;
+#       }
+#       div[data-baseweb="stNotificationContentSuccess"] {
+#           width: 400px !important;
+#           # background-color: white !important;
+#       }
+#       div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
+#           border-color: #80bdff !important;
+#           box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
+#       }
+#       div[data-testid="stForm"] {
+#                   border: none;
+#                   max-width: 400px;
+#                   min-height: 240px;
+#                   padding: 0;
+#               }
+#       div[data-testid="stVerticalBlockBorderWrapper"] {
+#                   margin: 0;
+#               }
+#       </style>
+#       """
+#       st.markdown(input_style, unsafe_allow_html=True)
 
-      with st.form(key=f'race_form_{race_number}'):
-          username = st.text_input(f"Enter username for Race {race_number}:", key=f'username_{race_number}')
-          submit_username = st.form_submit_button(f"Submit Username for Race {race_number}")
+#       with st.form(key=f'race_form_{race_number}'):
+#           username = st.text_input(f"Enter username for Race {race_number}:", key=f'username_{race_number}')
+#           submit_username = st.form_submit_button(f"Submit Username for Race {race_number}")
 
-          if submit_username and username:
-              user_races = find_user_races(username)
-              if not user_races:
-                  st.error(f"No data found for username: {username}")
-              else:
-                  st.success(f"Found {len(user_races)} races for {username}")
-                  st.session_state[f'user_races{race_number}'] = user_races
+#           if submit_username and username:
+#               user_races = find_user_races(username)
+#               if not user_races:
+#                   st.error(f"No data found for username: {username}")
+#               else:
+#                   st.success(f"Found {len(user_races)} races for {username}")
+#                   st.session_state[f'user_races{race_number}'] = user_races
 
-          if f'user_races{race_number}' in st.session_state:
-              selected_race = st.selectbox(f"Choose a race to visualize for Race {race_number}:", 
-                                           st.session_state[f'user_races{race_number}'], 
-                                           key=f"race_select{race_number}")
+#           if f'user_races{race_number}' in st.session_state:
+#               selected_race = st.selectbox(f"Choose a race to visualize for Race {race_number}:", 
+#                                            st.session_state[f'user_races{race_number}'], 
+#                                            key=f"race_select{race_number}")
 
-              if selected_race:
-                  load_race_button = st.form_submit_button(f"Load Selected Race {race_number}")
+#               if selected_race:
+#                   load_race_button = st.form_submit_button(f"Load Selected Race {race_number}")
 
-                  if load_race_button:
-                      data_load_state = st.text(f'Loading data for Race {race_number}...')
-                      df_static, df_dynamic = load_data(selected_race)
-                      st.session_state[f'df_static{race_number}'] = df_static
-                      st.session_state[f'df_dynamic{race_number}'] = df_dynamic
-                      data_load_state.text(f'Loading data for Race {race_number}...done!')
+#                   if load_race_button:
+#                       data_load_state = st.text(f'Loading data for Race {race_number}...')
+#                       df_static, df_dynamic = load_data(selected_race)
+#                       st.session_state[f'df_static{race_number}'] = df_static
+#                       st.session_state[f'df_dynamic{race_number}'] = df_dynamic
+#                       data_load_state.text(f'Loading data for Race {race_number}...done!')
 
-  return username, selected_race if 'selected_race' in locals() else None
+#   return username, selected_race if 'selected_race' in locals() else None
+
+# Usage in main app logic
+# col1, col2 = st.columns(2)
+
+# username1, selected_race1 = handle_race_input(col1, 1)
+# username2, selected_race2 = handle_race_input(col2, 2)
+
+
+# Main app logic
+def handle_race_input(col, race_number, json_file_path):
+    with col:
+        st.markdown(
+            f"""
+            <style>
+                div[data-testid="column"] > div:has(div.stButton) {{
+                    background-color: white;
+                    padding: 32px 64px;
+                    border-radius: 8px;
+                    margin-top: 32px;
+                    margin-bottom: 16px;
+                    border: 1px solid #dcdcdc;
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.subheader(f"Race {race_number}")
+        
+        # Custom CSS for text input (remains the same)
+        input_style = """
+        <style>
+        div[data-baseweb="input"] {
+            max-width: 400px !important;
+        }
+        div[data-baseweb="select"] {
+            max-width: 400px !important;
+        }
+        div[data-baseweb="stNotificationContentSuccess"] {
+            width: 400px !important;
+        }
+        div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
+            border-color: #80bdff !important;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
+        }
+        div[data-testid="stForm"] {
+                    border: none;
+                    max-width: 400px;
+                    min-height: 240px;
+                    padding: 0;
+                }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+                    margin: 0;
+                }
+        </style>
+        """
+        st.markdown(input_style, unsafe_allow_html=True)
+
+        if st.button(f"Load Race {race_number} Data"):
+            data_load_state = st.text(f'Loading data for Race {race_number}...')
+            df_static, df_dynamic = load_data(json_file_path)
+            st.session_state[f'df_static{race_number}'] = df_static
+            st.session_state[f'df_dynamic{race_number}'] = df_dynamic
+            data_load_state.text(f'Loading data for Race {race_number}...done!')
+
+    return df_static['username'].iloc[0] if 'df_static' in locals() else f"User {race_number}", json_file_path
+
 
 # Usage in main app logic
 col1, col2 = st.columns(2)
 
-username1, selected_race1 = handle_race_input(col1, 1)
-username2, selected_race2 = handle_race_input(col2, 2)
+# Specify the paths to your two JSON files here
+json_file_1 = "data/User01_20240829_1548.json"
+json_file_2 = "data/User02_20240829_1555.json"
+
+username1, selected_race1 = handle_race_input(col1, 1, json_file_1)
+username2, selected_race2 = handle_race_input(col2, 2, json_file_2)
+
+
 
 
 if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_static2', 'df_dynamic2']):
