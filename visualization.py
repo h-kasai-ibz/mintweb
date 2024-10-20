@@ -4,7 +4,7 @@ import numpy as np
 import os
 import plotly.graph_objects as go
 from scipy.signal import find_peaks
-from calc_course import get_course_tracks, get_course_track
+from track_vis import get_course_list, get_course_track
 
 
 
@@ -18,9 +18,9 @@ def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, co
     col.plotly_chart(fig, use_container_width=True)
 
 
-def create_combined_annotated_race_line_plot(df1, df2, selected_lap, username1, username2):
-    df1_reduced = df1.iloc[::10, :]  # Take every xrd point instead of every 5th
-    df2_reduced = df2.iloc[::10, :]
+def create_simple_race_line_plot(df1, df2, selected_lap, username1, username2):
+    df1_reduced = df1.iloc[::20, :]  # Take every xrd point instead of every 5th
+    df2_reduced = df2.iloc[::20, :]
 
     fig = go.Figure()
 
@@ -44,9 +44,8 @@ def create_combined_annotated_race_line_plot(df1, df2, selected_lap, username1, 
     fig.add_trace(create_user_trace(df2_reduced, username2, 'red', 9, opacity=0.4))
 
     # Add speed annotations
-    add_speed_annotations(fig, df1, 'red', 5, 5, username1, add_start=True)  # User 1: offset 5px to the left and up
-    add_speed_annotations(fig, df2, 'blue', -5, -5, username1, add_start=False)  # User 2: offset 5px to the right and down
-
+    add_speed_annotations(fig, df1, username1, is_reference=False, add_start=True)
+    add_speed_annotations(fig, df2, username1, is_reference=True, add_start=False)
     fig.update_layout(
         title=f'Combined Annotated Race Lines: Lap {selected_lap}',
         # xaxis_title='X Position',
@@ -54,13 +53,13 @@ def create_combined_annotated_race_line_plot(df1, df2, selected_lap, username1, 
         showlegend=True,
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
+        # axis scaling
         margin=dict(l=0, r=0, t=30, b=0),
     )
 
     return fig
 
-
-def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_start=False):
+def add_speed_annotations(fig, df, username, is_reference=False, add_start=False):
     speed = df['speed'].values
     
     # Simple peak and valley detection
@@ -69,38 +68,77 @@ def add_speed_annotations(fig, df, color, x_offset, y_offset, username, add_star
 
     max_annotations = 20
     peaks = peaks[:max_annotations]
-    valleys = valleys[:max_annotations] 
+    valleys = valleys[:max_annotations]
 
+    # Determine text format based on whether it is a reference user or not
+    def format_annotation_text(username, speed, is_peak, is_reference):
+        direction = "▴" if is_peak else "▾"
+        if is_reference:
+            return f"(Ref): {speed:.0f}{direction}"
+            # return f"(Ref){username}: {speed:.0f}{direction}"
+        else:
+            # return f"{speed:.0f}{direction}"
+            return f"{username}: {speed:.0f}{direction}"
+
+    # Assign colors based on whether it is a peak (high speed) or valley (low speed)
+    def assign_color(is_peak):
+        return 'blue' if is_peak else 'red'  # Blue for peaks (top speed), red for valleys (slowest)
+
+    # Add annotations for peaks (top speed)
     for i in peaks:
         fig.add_annotation(
-            x=df['position_x'].iloc[i] + x_offset,
-            y=df['position_z'].iloc[i] + y_offset,
-            text=f"{username}: ▴{speed[i]:.0f}",
+            x=df['position_x'].iloc[i],
+            y=df['position_z'].iloc[i],
+            text=format_annotation_text(username, speed[i], is_peak=True, is_reference=is_reference),
             showarrow=False,
-            font=dict(color=color, size=10),
+            font=dict(color=assign_color(is_peak=True), size=10),
             bgcolor="white",
             opacity=0.8
         )
 
+    # Add annotations for valleys (slow speed)
     for i in valleys:
         fig.add_annotation(
-            x=df['position_x'].iloc[i] + x_offset,
-            y=df['position_z'].iloc[i] + y_offset,
-            text=f"{username}: {speed[i]:.0f}▾",
+            x=df['position_x'].iloc[i],
+            y=df['position_z'].iloc[i],
+            text=format_annotation_text(username, speed[i], is_peak=False, is_reference=is_reference),
             showarrow=False,
-            font=dict(color=color, size=10),
+            font=dict(color=assign_color(is_peak=False), size=10),
             bgcolor="white",
             opacity=0.8
         )
 
+    # Add a "START" annotation if specified
     if add_start and len(df) > 0:
         fig.add_annotation(x=df['position_x'].iloc[0], y=df['position_z'].iloc[0], text="START", showarrow=False)
 
 
-# new plot with course track
-def create_detail_race_line(df1, df2, selected_lap, username1, username2):
-    df1_reduced = df1.iloc[::2, :]  # Take every 10th point
-    df2_reduced = df2.iloc[::2, :]
+def add_user_trace(fig, df, username, line_width, opacity=1):
+    def assign_color(throttle, brake):
+        if throttle > 0 and throttle > brake:
+            return 'blue'
+        elif brake > 0 and brake > throttle:
+            return 'red'
+        else:
+            return 'green'
+
+    for i in range(len(df) - 1):
+        color = assign_color(df['throttle'].iloc[i], df['brake'].iloc[i])
+        fig.add_trace(go.Scatter(
+            x=[df['position_x'].iloc[i], df['position_x'].iloc[i + 1]],
+            y=[df['position_z'].iloc[i], df['position_z'].iloc[i + 1]],
+            mode='lines',
+            line=dict(color=color, width=line_width),
+            opacity=opacity,
+            name=username if i == 0 else '',  # Show legend once
+            showlegend=(i == 0),
+            hoverinfo='text',
+            text=f"Throttle: {df['throttle'].iloc[i]:.2f}, Brake: {df['brake'].iloc[i]:.2f}"
+        ))
+
+def create_colored_race_line(df1, df2, selected_lap, username1, username2):
+    df1_reduced = df1.iloc[::8, :]  # Take every nth point
+    df2_reduced = df2.iloc[::8, :]
     fig = go.Figure()
 
     def assign_color(throttle, brake):
@@ -111,43 +149,26 @@ def create_detail_race_line(df1, df2, selected_lap, username1, username2):
         else:
             return 'green'
 
-    def add_user_trace(df, username, line_width, opacity=1):
-        for i in range(len(df) - 1):
-            color = assign_color(df['throttle'].iloc[i], df['brake'].iloc[i])
-            fig.add_trace(go.Scatter(
-                x=[df['position_x'].iloc[i], df['position_x'].iloc[i + 1]],
-                y=[df['position_z'].iloc[i], df['position_z'].iloc[i + 1]],
-                mode='lines',
-                line=dict(color=color, width=line_width),
-                opacity=opacity,
-                name=username if i == 0 else '',
-                showlegend=(i == 0),
-                hoverinfo='text',
-                text=f"Throttle: {df['throttle'].iloc[i]:.2f}, Brake: {df['brake'].iloc[i]:.2f}"
-            ))
-
-    # Add trace for user 1 (normal line)
-    add_user_trace(df1_reduced, username1, line_width=3)
-
-    # Add trace for user 2 (wider, semi-transparent line)
-    add_user_trace(df2_reduced, username2, line_width=10, opacity=0.3)
+    # Add trace
+    add_user_trace(fig, df1_reduced, username1, line_width=1)
+    add_user_trace(fig, df2_reduced, username2, line_width=1, opacity=0.4)
 
     # Add speed annotations
-    add_speed_annotations(fig, df1, 'gray', 5, 5, username1, add_start=True)  # User 1: offset 5px to the right and up
-    add_speed_annotations(fig, df2, 'gray', -5, -5, username2, add_start=False)  # User 2: offset 5px to the left and down
+    add_speed_annotations(fig, df1, username1, is_reference=False, add_start=True)
+    add_speed_annotations(fig, df2, username2, is_reference=True, add_start=False)
 
     fig.update_layout(
         title=f'Detailed Race Lines: Lap {selected_lap}',
         xaxis_title='X Position',
         yaxis_title='Z Position',
         showlegend=True,
-        yaxis=dict(scaleanchor="x", scaleratio=1, autorange="reversed"),
+        yaxis=dict(scaleanchor="x", scaleratio=1),
         margin=dict(l=0, r=0, t=30, b=0),
     )
 
     return fig
 
-def create_detail_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_lap, username1, username2, course_track_data, width=800, height=600):
+def create_colored_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_lap, username1, username2, course_track_data, width=800, height=600):
     # Create a new figure for the combined plot
     race_line_fig = go.Figure()
 
@@ -157,7 +178,7 @@ def create_detail_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_la
         race_line_fig.add_trace(trace)
 
     # Now, add the race line plot on top of the course track
-    race_line_detail = create_detail_race_line(lap_data_1, lap_data_2, selected_lap, username1, username2)
+    race_line_detail = create_colored_race_line(lap_data_1, lap_data_2, selected_lap, username1, username2)
     for trace in race_line_detail['data']:
         race_line_fig.add_trace(trace)
 
@@ -177,8 +198,8 @@ def create_detail_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_la
     )
 
     # Add speed annotations
-    add_speed_annotations(race_line_fig, lap_data_1, 'red', 5, 5, username1, add_start=True)  # User 1: offset 5px to the left and up
-    add_speed_annotations(race_line_fig, lap_data_2, 'blue', -5, -5, username2, add_start=False)  # User 2: offset 5px to the right and down
+    add_speed_annotations(race_line_fig, lap_data_1, username1, is_reference=False, add_start=True)
+    add_speed_annotations(race_line_fig, lap_data_2, username2, is_reference=True, add_start=False)
 
     return race_line_fig
 
@@ -237,7 +258,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
                                   df_dynamic_2['lap'].unique(), key="lap_select_2")
     
     # Get the list of available course track JSON files (filenames only)
-    course_track_options = get_course_tracks(course_track_directory)
+    course_track_options = get_course_list(course_track_directory)
 
     # Validate if there are course track options available
     if not course_track_options:
@@ -261,7 +282,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
         st.error(f"The selected course track file {selected_course_track_file} does not exist.")
         return
 
-    course_track_fig = get_course_track(selected_course_track_data)
+    # course_track_fig = get_course_track(selected_course_track_data)
     
     # Filter data for the selected lap for each race
     selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_1]
@@ -272,7 +293,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     username2 = df_static_2['username'].iloc[0]
 
     # Visualize race line with course track
-    detail_race_line_plot_with_coursetrack = create_detail_race_line_with_coursetrack(
+    detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
         selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, selected_course_track_data, width=600, height=600
     )
     st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
