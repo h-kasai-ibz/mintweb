@@ -6,10 +6,6 @@ import plotly.graph_objects as go
 from scipy.signal import find_peaks
 from track_vis import get_course_list, get_course_track
 
-
-
-course_track_directory = 'course_track'
-
 def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, col, username1, username2):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df1[x_column], y=df1[y_column], mode='lines', name=f'{username1}', line=dict(color='blue')))
@@ -173,28 +169,29 @@ def create_colored_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_l
     race_line_fig = go.Figure()
 
     # First, add the course track (road) plot behind everything else
-    course_track_fig = get_course_track(course_track_data)
-    for trace in course_track_fig['data']:
-        race_line_fig.add_trace(trace)
+    if isinstance(course_track_data, go.Figure):
+        for trace in course_track_data.data:
+            race_line_fig.add_trace(trace)
+    elif isinstance(course_track_data, list):
+        for trace in course_track_data:
+            race_line_fig.add_trace(trace)
+    else:
+        st.warning("Course track data is not in the expected format. Skipping course track visualization.")
 
     # Now, add the race line plot on top of the course track
     race_line_detail = create_colored_race_line(lap_data_1, lap_data_2, selected_lap, username1, username2)
     for trace in race_line_detail['data']:
         race_line_fig.add_trace(trace)
 
-    # Update layout for the combined plot (if necessary)
+    # Update layout for the combined plot
     race_line_fig.update_layout(
         title=f"Race Line and Course Track for Lap {selected_lap}",
-        # xaxis_title="X Axis",
-        # yaxis_title="Y Axis",
         showlegend=False,
-        autosize=False,  # Disable autosizing so that the specified width and height are used
-        width=width,   # Set the plot width
-        height=height, # Set the plot height
-        yaxis_scaleanchor="x",  # Maintain aspect ratio by linking x and y axis scaling
-        xaxis=dict(
-            scaleanchor="y",   # Ensures the plot maintains its aspect ratio
-        )
+        autosize=False,
+        width=width,
+        height=height,
+        yaxis_scaleanchor="x",
+        xaxis=dict(scaleanchor="y")
     )
 
     # Add speed annotations
@@ -244,8 +241,10 @@ def print_lap_times_table(df_static_1, df_static_2):
     # Display the DataFrame as a table without index
     st.dataframe(df_lap_times.set_index('Lap'))
 
+course_track_directory = 'course_track'
 
-def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots):
+
+def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
     # Display lap times table
     print_lap_times_table(df_static_1, df_static_2)
 
@@ -257,33 +256,6 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     selected_lap_2 = st.selectbox(f"{df_static_2['username'].iloc[0]} のラップを選択してください:", 
                                   df_dynamic_2['lap'].unique(), key="lap_select_2")
     
-    # Get the list of available course track JSON files (filenames only)
-    course_track_options = get_course_list(course_track_directory)
-
-    # Validate if there are course track options available
-    if not course_track_options:
-        st.error("No course track files found.")
-        return
-
-    # Let the user select the course track from the available options
-    selected_course_track_file = st.selectbox("表示するコーストラックを選択してください:",
-                                              course_track_options, key="track_select")
-
-    # Validate the selected course track file
-    if not selected_course_track_file:
-        st.error("Please select a valid course track.")
-        return
-
-    # Load the selected course track JSON data
-    selected_course_track_data = os.path.join(course_track_directory, selected_course_track_file)
-
-    # Verify if the course track file exists
-    if not os.path.exists(selected_course_track_data):
-        st.error(f"The selected course track file {selected_course_track_file} does not exist.")
-        return
-
-    # course_track_fig = get_course_track(selected_course_track_data)
-    
     # Filter data for the selected lap for each race
     selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_1]
     selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_2]
@@ -294,10 +266,9 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
 
     # Visualize race line with course track
     detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
-        selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, selected_course_track_data, width=600, height=600
+        selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, course_track_options, width=600, height=600
     )
     st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
-    st.write(f"表示されているコース: **{selected_course_track_file}**")
 
     # Visualize other plots in two-column layout
     for i in range(0, len(selected_plots), 2):

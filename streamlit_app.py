@@ -14,6 +14,7 @@ import os
 from dotenv import load_dotenv
 
 from visualization import visualize_data
+from track_vis import get_course_track, get_course_list
 
 # authentication
 import streamlit_authenticator as stauth
@@ -207,55 +208,21 @@ def load_data(file_name):
 # username1, selected_race1 = handle_race_input(col1, 1)
 # username2, selected_race2 = handle_race_input(col2, 2)
 
+course_track_directory = 'course_track'
 
 # Main app logic
 def handle_race_input(col, race_number, json_file_path):
     with col:
-        st.markdown(
-            f"""
-            <style>
-                div[data-testid="column"] > div:has(div.stButton) {{
-                    background-color: white;
-                    padding: 32px 64px;
-                    border-radius: 8px;
-                    margin-top: 32px;
-                    margin-bottom: 16px;
-                    border: 1px solid #dcdcdc;
-                }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
         st.subheader(f"Race {race_number}")
-        
-        # Custom CSS for text input (remains the same)
-        input_style = """
+
+        # Custom CSS for input styling
+        input_style = '''
         <style>
-        div[data-baseweb="input"] {
+        div[data-baseweb="input"], div[data-baseweb="select"] {
             max-width: 400px !important;
         }
-        div[data-baseweb="select"] {
-            max-width: 400px !important;
-        }
-        div[data-baseweb="stNotificationContentSuccess"] {
-            width: 400px !important;
-        }
-        div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
-            border-color: #80bdff !important;
-            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
-        }
-        div[data-testid="stForm"] {
-                    border: none;
-                    max-width: 400px;
-                    min-height: 240px;
-                    padding: 0;
-                }
-        div[data-testid="stVerticalBlockBorderWrapper"] {
-                    margin: 0;
-                }
         </style>
-        """
+        '''
         st.markdown(input_style, unsafe_allow_html=True)
 
         if st.button(f"Load Race {race_number} Data"):
@@ -264,25 +231,32 @@ def handle_race_input(col, race_number, json_file_path):
             st.session_state[f'df_static{race_number}'] = df_static
             st.session_state[f'df_dynamic{race_number}'] = df_dynamic
             data_load_state.text(f'Loading data for Race {race_number}...done!')
-
+    
     return df_static['username'].iloc[0] if 'df_static' in locals() else f"User {race_number}", json_file_path
-
 
 # Usage in main app logic
 col1, col2 = st.columns(2)
 
-# Specify the paths to your two JSON files here
-json_file_1 = "data/suzuka_1414.json"
-json_file_2 = "data/suzuka_1404.json"
+# Example paths to JSON files (replace with actual files)
+json_file_1 = "data/suzuka_01.json"
+json_file_2 = "data/suzuka_02.json"
 
+# Handle input for both races
 username1, selected_race1 = handle_race_input(col1, 1, json_file_1)
 username2, selected_race2 = handle_race_input(col2, 2, json_file_2)
 
+# Single course track selection (appears only once for both races)
+course_track_options = get_course_list(course_track_directory)
 
+if course_track_options:
+    selected_course_track = st.selectbox("Select Course Track for Both Races:", course_track_options, key="course_track")
+    course_track_data = get_course_track(os.path.join(course_track_directory, selected_course_track))
+else:
+    st.error("No course tracks available")
+    course_track_data = None
 
-
-if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_static2', 'df_dynamic2']):
-    st.subheader("レース比較")
+if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_static2', 'df_dynamic2']) and course_track_data:
+    st.subheader("Race Comparison")
 
     # 全ての指標のリスト
     all_metrics = [
@@ -321,8 +295,8 @@ if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_stat
 
     # Race Line の可視化を含めて全てのデータを可視化
     visualize_data(st.session_state.df_static1, st.session_state.df_dynamic1, 
-               st.session_state.df_static2, st.session_state.df_dynamic2,
-               all_metrics)
+                   st.session_state.df_static2, st.session_state.df_dynamic2,
+                   all_metrics, course_track_data)
 else:
     st.warning("両方のレースのデータをロードして、比較を行ってください。")
 
