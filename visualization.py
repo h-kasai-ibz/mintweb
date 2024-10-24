@@ -147,7 +147,7 @@ def create_colored_race_line(df1, df2, selected_lap, username1, username2):
 
     # Add trace
     add_user_trace(fig, df1_reduced, username1, line_width=1)
-    add_user_trace(fig, df2_reduced, username2, line_width=1, opacity=0.4)
+    add_user_trace(fig, df2_reduced, username2, line_width=6, opacity=0.4)
 
     # Add speed annotations
     add_speed_annotations(fig, df1, username1, is_reference=False, add_start=True)
