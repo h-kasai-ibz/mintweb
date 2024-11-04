@@ -43,23 +43,43 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=config['cookie']['expiry_days'],
 )
 
-def update_query_params(selected_races):
+def update_query_params(selected_races, selected_laps=None):
+    """Update query parameters for both races and laps"""
     try:
         if selected_races:
             races_str = ','.join(selected_races)
             st.query_params['races'] = races_str
+            
+            # Add lap parameters if provided
+            if selected_laps and len(selected_laps) == 2:
+                st.query_params['lap1'] = str(selected_laps[0])
+                st.query_params['lap2'] = str(selected_laps[1])
         else:
+            # Clear parameters if no races selected
             if 'races' in st.query_params:
                 del st.query_params['races']
+            if 'lap1' in st.query_params:
+                del st.query_params['lap1']
+            if 'lap2' in st.query_params:
+                del st.query_params['lap2']
     except Exception as e:
         st.error(f"Error updating query params: {str(e)}")
-    
+
 def get_selected_races_from_params():
-    """Debug version of parameter retrieval"""    
+    """Retrieve both races and laps from URL parameters"""
     races_param = st.query_params.get('races', '')
+    lap1_param = st.query_params.get('lap1', '')
+    lap2_param = st.query_params.get('lap2', '')
     
-    result = races_param.split(',') if races_param else []
-    return result
+    races = races_param.split(',') if races_param else []
+    laps = None
+    if lap1_param and lap2_param:
+        try:
+            laps = [int(lap1_param), int(lap2_param)]
+        except ValueError:
+            st.error("Invalid lap parameters in URL")
+    
+    return races, laps
 
 
 ## UI 
@@ -141,11 +161,12 @@ if st.session_state["authentication_status"]:
 
     # Main app logic
     def handle_race_input():
-      # Initialize selected_races from query parameters if not in session state
+      # Initialize selected_races and laps from query parameters
       if 'selected_races' not in st.session_state:
-          st.session_state['selected_races'] = get_selected_races_from_params()
-          if st.session_state['selected_races'] == ['']:
-              st.session_state['selected_races'] = []
+        races_from_params, laps_from_params = get_selected_races_from_params()
+        st.session_state['selected_races'] = races_from_params if races_from_params != [''] else []
+        if laps_from_params:
+            st.session_state['selected_laps'] = laps_from_params
       
       col1, col2 = st.columns([1, 2])
 
@@ -260,7 +281,12 @@ if st.session_state["authentication_status"]:
             ('road_plane_m', '路面平面M')
         ]
 
-      visualize_data(df_static_list[0], df_dynamic_list[0], df_static_list[1], df_dynamic_list[1], all_metrics, course_track_data)
+      # Initialize with laps from URL if available
+      if 'selected_laps' in st.session_state:
+          st.session_state['initial_laps'] = st.session_state['selected_laps']
+      
+
+      visualize_data(df_static_list[0], df_dynamic_list[0], df_static_list[1], df_dynamic_list[1], all_metrics, course_track_data, update_query_params)
       st.session_state['visualize_ready'] = False
 
 

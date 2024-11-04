@@ -287,7 +287,7 @@ def create_lap_options(df_dynamic):
     
     return lap_options
 
-def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
+def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options, update_query_params):
     # Display lap times table
     username1 = df_static_1['username'].iloc[0]
     username2 = df_static_2['username'].iloc[0]
@@ -301,40 +301,68 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     lap_options_1 = create_lap_options(df_dynamic_1)
     lap_options_2 = create_lap_options(df_dynamic_2)
 
+    # Get initial lap selections from URL parameters if available
+    initial_lap1 = None
+    initial_lap2 = None
+    if 'selected_laps' in st.session_state:
+        initial_lap1 = next((opt for opt in lap_options_1 if opt[0] == st.session_state['selected_laps'][0]), None)
+        initial_lap2 = next((opt for opt in lap_options_2 if opt[0] == st.session_state['selected_laps'][1]), None)
+
     # Use st.form to group lap selection and avoid re-runs
     with st.form(key="lap_selection_form"):
         # Lap selection for race 1
         selected_lap_1 = st.selectbox(
             f"{username1} のラップを選択してください:",
             options=lap_options_1,
-            format_func=lambda x: x[1],  # Display the formatted text
-            key="lap_select_1"
+            format_func=lambda x: x[1],
+            key="lap_select_1",
+            index=lap_options_1.index(initial_lap1) if initial_lap1 else 0
         )
 
         # Lap selection for race 2
         selected_lap_2 = st.selectbox(
             f"{display_username2} のラップを選択してください:",
             options=lap_options_2,
-            format_func=lambda x: x[1],  # Display the formatted text
-            key="lap_select_2"
+            format_func=lambda x: x[1],
+            key="lap_select_2",
+            index=lap_options_2.index(initial_lap2) if initial_lap2 else 0
         )
 
         # Submit button to apply lap selections
         submit_button = st.form_submit_button("Submit")
 
-    # Proceed only if the form is submitted
-    if submit_button:
-        # Extract actual lap numbers from the selected tuples
-        selected_lap_num_1 = selected_lap_1[0]
-        selected_lap_num_2 = selected_lap_2[0]
+    # Determine if we should auto-visualize
+    should_auto_visualize = (
+        'selected_laps' in st.session_state and 
+        not st.session_state.get('has_auto_visualized', False)
+    )
+
+    # Update URL parameters and visualize when form is submitted or auto-visualize is triggered
+    if submit_button or should_auto_visualize:
+        # Get the lap numbers to use
+        if submit_button:
+            selected_lap_num_1 = selected_lap_1[0]
+            selected_lap_num_2 = selected_lap_2[0]
+        else:  # Auto-visualize case
+            selected_lap_num_1 = st.session_state['selected_laps'][0]
+            selected_lap_num_2 = st.session_state['selected_laps'][1]
+            # Mark that we've done the auto-visualization
+            st.session_state['has_auto_visualized'] = True
         
+        # Update URL with both races and laps
+        update_query_params(
+            st.session_state['selected_races'], 
+            [selected_lap_num_1, selected_lap_num_2]
+        )
+
         # Filter data for the selected lap for each race
         selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_num_1]
         selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_num_2]
 
         # Visualize race line with course track
         detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
-            selected_lap_data_1, selected_lap_data_2, selected_lap_num_1, username1, username2, course_track_options, width=600, height=600
+            selected_lap_data_1, selected_lap_data_2, selected_lap_num_1, 
+            username1, username2, course_track_options, width=600, height=600
         )
         st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
 
