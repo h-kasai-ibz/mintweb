@@ -8,6 +8,8 @@ from track_vis import get_course_list, get_course_track
 from datetime import datetime
 
 def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, col, username1, username2):
+    if username1 == username2:
+      username2 = "(Ref)" + username2
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df1[x_column], y=df1[y_column], mode='lines', name=f'{username1}', line=dict(color='blue')))
     fig.add_trace(go.Scatter(x=df2[x_column], y=df2[y_column], mode='lines', name=f'{username2}', line=dict(color='red')))
@@ -227,7 +229,7 @@ def print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2):
     username_1 = df_static_1['username'].iloc[0] 
     username_2 = df_static_2['username'].iloc[0]
     if username_1 == username_2:
-      username_2 = username_2 + "(Ref)"
+      username_2 = "(Ref)" + username_2
 
     # Find the maximum number of laps
     max_laps = max(len(lap_times_1), len(lap_times_2))
@@ -256,20 +258,26 @@ course_track_directory = 'course_track'
 
 def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
     # Display lap times table
+    username1 = df_static_1['username'].iloc[0]
+    username2 = df_static_2['username'].iloc[0]
+    if username1 == username2:
+        display_username2 = f"(Ref){username2}"
+    else:
+        display_username2 = username2
     print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2)
 
     # Use st.form to group lap selection and avoid re-runs
     with st.form(key="lap_selection_form"):
         # Lap selection for race 1
         selected_lap_1 = st.selectbox(
-            f"{df_static_1['username'].iloc[0]} のラップを選択してください:",
+            f"{username1} のラップを選択してください:",
             df_dynamic_1['lap'].unique(),
             key="lap_select_1"
         )
 
         # Lap selection for race 2
         selected_lap_2 = st.selectbox(
-            f"{df_static_2['username'].iloc[0]} のラップを選択してください:",
+            f"{display_username2} のラップを選択してください:",
             df_dynamic_2['lap'].unique(),
             key="lap_select_2"
         )
