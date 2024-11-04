@@ -44,6 +44,18 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=config['cookie']['expiry_days'],
 )
 
+# Function to set query parameters using st.query_params
+def set_query_param(key, value):
+    if isinstance(value, str):
+        value = [value]  # Ensure value is a list if it's a single string
+    st.query_params.from_dict({key: value})  # Use from_dict to set the parameters
+
+# Function to get query parameters using st.query_params
+def get_query_param(key):
+    params = st.query_params  # Access st.query_params as a dictionary-like object
+    return params.get_all(key)  # Get all values associated with the key
+
+
 ## UI 
 authenticator.login()
 if st.session_state["authentication_status"]:
@@ -122,59 +134,14 @@ if st.session_state["authentication_status"]:
         return df_static, df_dynamic
 
     # Main app logic
-    def handle_race_input(col, race_number):
-      with col:
-          st.markdown(
-              f"""
-              <style>
-                  div[data-testid="column"] > div:has(div.stButton) {{
-                      background-color: white;
-                      padding: 32px 64px;
-                      border-radius: 8px;
-                      margin-top: 32px;
-                      margin-bottom: 16px;
-                      border: 1px solid #dcdcdc;
-                  }}
-              </style>
-              """,
-              unsafe_allow_html=True
-          )
+    def handle_race_input():
+      col1, col2 = st.columns([1, 2])
 
-          st.subheader(f"Race {race_number}")
-          
-          # Custom CSS for text input
-          input_style = """
-          <style>
-          div[data-baseweb="input"] {
-              max-width: 400px !important;
-          }
-          div[data-baseweb="select"] {
-              max-width: 400px !important;
-          }
-          div[data-baseweb="stNotificationContentSuccess"] {
-              width: 400px !important;
-              # background-color: white !important;
-          }
-          div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
-              border-color: #80bdff !important;
-              box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
-          }
-          div[data-testid="stForm"] {
-                      border: none;
-                      max-width: 400px;
-                      min-height: 240px;
-                      padding: 0;
-                  }
-          div[data-testid="stVerticalBlockBorderWrapper"] {
-                      margin: 0;
-                  }
-          </style>
-          """
-          st.markdown(input_style, unsafe_allow_html=True)
-
-          with st.form(key=f'race_form_{race_number}'):
-              username = st.text_input(f"Enter username for Race {race_number}:", key=f'username_{race_number}')
-              submit_username = st.form_submit_button(f"Submit Username for Race {race_number}")
+      with col1:
+          st.subheader("Search for JSON Files")
+          with st.form(key='race_form'):
+              username = st.text_input("Enter username to search races:", key='username')
+              submit_username = st.form_submit_button("Search")
 
               if submit_username and username:
                   user_races = find_user_races(username)
@@ -182,33 +149,54 @@ if st.session_state["authentication_status"]:
                       st.error(f"No data found for username: {username}")
                   else:
                       st.success(f"Found {len(user_races)} races for {username}")
-                      st.session_state[f'user_races{race_number}'] = user_races
+                      st.session_state['user_races'] = user_races
 
-              if f'user_races{race_number}' in st.session_state:
-                  selected_race = st.selectbox(f"Choose a race to visualize for Race {race_number}:", 
-                                               st.session_state[f'user_races{race_number}'], 
-                                               key=f"race_select{race_number}")
+      with col2:
+          stored_json_files = get_query_param("selected_races")
+          if stored_json_files and 'selected_races' not in st.session_state:
+              st.session_state['selected_races'] = stored_json_files
 
-                  if selected_race:
-                      load_race_button = st.form_submit_button(f"Load Selected Race {race_number}")
+          if 'user_races' in st.session_state:
+              st.subheader("Search Results")
+              selected_race = st.selectbox("Choose a race to add:", st.session_state['user_races'])
+              add_race = st.button(f"Add {selected_race} to Visualize")
 
-                      if load_race_button:
-                          data_load_state = st.text(f'Loading data for Race {race_number}...')
-                          df_static, df_dynamic = load_data(selected_race)
-                          st.session_state[f'df_static{race_number}'] = df_static
-                          st.session_state[f'df_dynamic{race_number}'] = df_dynamic
-                          data_load_state.text(f'Loading data for Race {race_number}...done!')
+              if add_race:
+                  if 'selected_races' not in st.session_state:
+                      st.session_state['selected_races'] = []
+                  if len(st.session_state['selected_races']) < 2:
+                      if selected_race not in st.session_state['selected_races']:
+                          st.session_state['selected_races'].append(selected_race)
+                          set_query_param("selected_races", st.session_state['selected_races'])
+                      else:
+                          st.warning(f"{selected_race} is already added.")
+                  else:
+                      st.warning("You can select up to 2 races.")
 
-      return username, selected_race if 'selected_race' in locals() else None
+          st.subheader("Selected JSON Files")
+          if 'selected_races' in st.session_state and st.session_state['selected_races']:
+              for race in st.session_state['selected_races']:
+                  col_race, col_remove = st.columns([4, 1])
+                  with col_race:
+                      st.write(race)
+                  with col_remove:
+                      remove_button = st.button("Remove", key=f'remove_{race}')
+                      if remove_button:
+                          st.session_state['selected_races'].remove(race)
+                          set_query_param("selected_races", st.session_state['selected_races'])
+          else:
+              st.write("No files selected yet.")
 
-    # Usage in main app logic
-    col1, col2 = st.columns(2)
+      visualize_disabled = len(st.session_state.get('selected_races', [])) == 0
+      st.write("")
+      visualize_button = st.button("Visualize", disabled=visualize_disabled)
 
-    username1, selected_race1 = handle_race_input(col1, 1)
-    username2, selected_race2 = handle_race_input(col2, 2)
+      if visualize_button and not visualize_disabled:
+          st.session_state['visualize_ready'] = True
+    
+    handle_race_input()
 
     course_track_directory = 'course_track'
-    # Single course track selection (appears only once for both races)
     course_track_options = get_course_list(course_track_directory)
 
     if course_track_options:
@@ -218,11 +206,21 @@ if st.session_state["authentication_status"]:
         st.error("No course tracks available")
         course_track_data = None
 
-    if all(key in st.session_state for key in ['df_static1', 'df_dynamic1', 'df_static2', 'df_dynamic2']) and course_track_data:
-        st.subheader("Race Comparison")
 
-        # 全ての指標のリスト
-        all_metrics = [
+    if 'visualize_ready' in st.session_state and st.session_state['visualize_ready']:
+      st.success("Visualizing data")
+
+      df_static_list = []
+      df_dynamic_list = []
+      
+      for index, race in enumerate(st.session_state['selected_races']):
+          df_static, df_dynamic = load_data(race)
+          st.session_state[f'df_static{index+1}'] = df_static
+          st.session_state[f'df_dynamic{index+1}'] = df_dynamic
+          df_static_list.append(df_static)
+          df_dynamic_list.append(df_dynamic)
+
+      all_metrics = [
             ('speed', '現在の速度 (km/h)'),
             ('rpm', 'エンジン回転数 (rpm)'),
             ('throttle', 'アクセル (%)'),
@@ -236,32 +234,28 @@ if st.session_state["authentication_status"]:
             ('rpm_after_clutch', 'クラッチ後のRPM (rpm)'),
             ('oil_temp', 'オイル温度 (°C)'),
             ('water_temp', '水温 (°C)'),
-            # ('ride_height', '車高 (mm)'),
-            # ('position_x', '位置X (m)'),
-            # ('position_y', '位置Y (m)'),
-            # ('position_z', '位置Z (m)'),
+            ('ride_height', '車高 (mm)'),
+            ('position_x', '位置X (m)'),
+            ('position_y', '位置Y (m)'),
+            ('position_z', '位置Z (m)'),
             ('velocity_x', '速度X (m/s)'),
             ('velocity_y', '速度Y (m/s)'),
             ('velocity_z', '速度Z (m/s)'),
             ('rotation_pitch', '回転（ピッチ）'),
             ('rotation_yaw', '回転（ヨー）'),
             ('rotation_roll', '回転（ロール）'),
-            # ('rotation_w', '回転W クォータニオンのW成分'),
+            ('rotation_w', '回転W クォータニオンのW成分'),
             ('angular_velocity_x', '角速度X (rad/s)'),
             ('angular_velocity_y', '角速度Y (rad/s)'),
             ('angular_velocity_z', '角速度Z (rad/s)'),
-            # ('road_plane_x', '路面平面X'),
-            # ('road_plane_y', '路面平面Y'),
-            # ('road_plane_z', '路面平面Z'),
-            # ('road_plane_m', '路面平面M')
+            ('road_plane_x', '路面平面X'),
+            ('road_plane_y', '路面平面Y'),
+            ('road_plane_z', '路面平面Z'),
+            ('road_plane_m', '路面平面M')
         ]
 
-        # Race Line の可視化を含めて全てのデータを可視化
-        visualize_data(st.session_state.df_static1, st.session_state.df_dynamic1, 
-                       st.session_state.df_static2, st.session_state.df_dynamic2,
-                       all_metrics, course_track_data)
-    else:
-        st.warning("両方のレースのデータをロードして、比較を行ってください。")
+      visualize_data(df_static_list[0], df_dynamic_list[0], df_static_list[1], df_dynamic_list[1], all_metrics, course_track_data)
+      st.session_state['visualize_ready'] = False
 
 
 elif st.session_state["authentication_status"] is False:
