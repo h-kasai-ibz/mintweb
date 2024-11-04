@@ -255,6 +255,37 @@ def print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2):
 
 course_track_directory = 'course_track'
 
+def get_lap_times_and_fastest(df_dynamic):
+    """
+    Extract lap times and identify the fastest lap
+    Returns a dictionary of lap times and the fastest lap number
+    """
+    lap_times = {}
+    for lap in df_dynamic['lap'].unique():
+        # Get the final frame's current_lap_time for each lap
+        lap_time = df_dynamic[df_dynamic['lap'] == lap]['current_lap_time'].iloc[-1]
+        lap_times[lap] = lap_time
+    
+    # Find the fastest lap
+    fastest_lap = min(lap_times.items(), key=lambda x: x[1])[0]
+    return lap_times, fastest_lap
+
+def create_lap_options(df_dynamic):
+    """
+    Create formatted options for lap selection dropdown
+    Returns list of tuples (lap_number, display_text)
+    """
+    lap_times, fastest_lap = get_lap_times_and_fastest(df_dynamic)
+    
+    # Format each lap option, adding (fastest) to the fastest lap
+    lap_options = []
+    for lap in sorted(lap_times.keys()):
+        display_text = f"Lap {lap} - {lap_times[lap]:.3f}s"
+        if lap == fastest_lap:
+            display_text += " (fastest)"
+        lap_options.append((lap, display_text))
+    
+    return lap_options
 
 def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
     # Display lap times table
@@ -266,19 +297,25 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
         display_username2 = username2
     print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2)
 
+    # Create lap options with fastest lap indicator
+    lap_options_1 = create_lap_options(df_dynamic_1)
+    lap_options_2 = create_lap_options(df_dynamic_2)
+
     # Use st.form to group lap selection and avoid re-runs
     with st.form(key="lap_selection_form"):
         # Lap selection for race 1
         selected_lap_1 = st.selectbox(
             f"{username1} のラップを選択してください:",
-            df_dynamic_1['lap'].unique(),
+            options=lap_options_1,
+            format_func=lambda x: x[1],  # Display the formatted text
             key="lap_select_1"
         )
 
         # Lap selection for race 2
         selected_lap_2 = st.selectbox(
             f"{display_username2} のラップを選択してください:",
-            df_dynamic_2['lap'].unique(),
+            options=lap_options_2,
+            format_func=lambda x: x[1],  # Display the formatted text
             key="lap_select_2"
         )
 
@@ -287,17 +324,17 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
 
     # Proceed only if the form is submitted
     if submit_button:
+        # Extract actual lap numbers from the selected tuples
+        selected_lap_num_1 = selected_lap_1[0]
+        selected_lap_num_2 = selected_lap_2[0]
+        
         # Filter data for the selected lap for each race
-        selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_1]
-        selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_2]
-
-        # Get usernames from static data
-        username1 = df_static_1['username'].iloc[0]
-        username2 = df_static_2['username'].iloc[0]
+        selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_num_1]
+        selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_num_2]
 
         # Visualize race line with course track
         detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
-            selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, course_track_options, width=600, height=600
+            selected_lap_data_1, selected_lap_data_2, selected_lap_num_1, username1, username2, course_track_options, width=600, height=600
         )
         st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
 
@@ -307,13 +344,13 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
             
             create_comparison_plot(
                 selected_lap_data_1, selected_lap_data_2, 'current_lap_time',
-                selected_plots[i][0], selected_plots[i][1], selected_lap_1,
+                selected_plots[i][0], selected_plots[i][1], selected_lap_num_1,
                 col1, username1, username2
             )
             
             if i + 1 < len(selected_plots):
                 create_comparison_plot(
                     selected_lap_data_1, selected_lap_data_2, 'current_lap_time',
-                    selected_plots[i + 1][0], selected_plots[i + 1][1], selected_lap_1,
+                    selected_plots[i + 1][0], selected_plots[i + 1][1], selected_lap_num_1,
                     col2, username1, username2
                 )
