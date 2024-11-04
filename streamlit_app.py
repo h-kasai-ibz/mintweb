@@ -12,7 +12,6 @@ import tempfile
 import logging
 import os
 from dotenv import load_dotenv
-
 from visualization import visualize_data
 from track_vis import get_course_track, get_course_list
 
@@ -44,16 +43,23 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=config['cookie']['expiry_days'],
 )
 
-# Function to set query parameters using st.query_params
-def set_query_param(key, value):
-    if isinstance(value, str):
-        value = [value]  # Ensure value is a list if it's a single string
-    st.query_params.from_dict({key: value})  # Use from_dict to set the parameters
-
-# Function to get query parameters using st.query_params
-def get_query_param(key):
-    params = st.query_params  # Access st.query_params as a dictionary-like object
-    return params.get_all(key)  # Get all values associated with the key
+def update_query_params(selected_races):
+    try:
+        if selected_races:
+            races_str = ','.join(selected_races)
+            st.query_params['races'] = races_str
+        else:
+            if 'races' in st.query_params:
+                del st.query_params['races']
+    except Exception as e:
+        st.error(f"Error updating query params: {str(e)}")
+    
+def get_selected_races_from_params():
+    """Debug version of parameter retrieval"""    
+    races_param = st.query_params.get('races', '')
+    
+    result = races_param.split(',') if races_param else []
+    return result
 
 
 ## UI 
@@ -135,9 +141,12 @@ if st.session_state["authentication_status"]:
 
     # Main app logic
     def handle_race_input():
+      # Initialize selected_races from query parameters if not in session state
       if 'selected_races' not in st.session_state:
-        st.session_state['selected_races'] = []
-        
+          st.session_state['selected_races'] = get_selected_races_from_params()
+          if st.session_state['selected_races'] == ['']:
+              st.session_state['selected_races'] = []
+      
       col1, col2 = st.columns([1, 2])
 
       with col1:
@@ -147,6 +156,7 @@ if st.session_state["authentication_status"]:
               submit_username = st.form_submit_button("Search")
 
               if submit_username and username:
+                  st.write(f"Searching for races for user: {username}")
                   user_races = find_user_races(username)
                   if not user_races:
                       st.error(f"No data found for username: {username}")
@@ -155,29 +165,24 @@ if st.session_state["authentication_status"]:
                       st.session_state['user_races'] = user_races
 
       with col2:
-          stored_json_files = get_query_param("selected_races")
-          if stored_json_files and 'selected_races' not in st.session_state:
-              st.session_state['selected_races'] = stored_json_files
-
           if 'user_races' in st.session_state:
               st.subheader("Search Results")
               selected_race = st.selectbox("Choose a race to add:", st.session_state['user_races'])
               add_race = st.button(f"Add {selected_race} to Visualize")
 
               if add_race:
-                  if 'selected_races' not in st.session_state:
-                      st.session_state['selected_races'] = []
                   if len(st.session_state['selected_races']) < 2:
                       if selected_race not in st.session_state['selected_races']:
+                          st.write("Adding race to selected_races")
                           st.session_state['selected_races'].append(selected_race)
-                          set_query_param("selected_races", st.session_state['selected_races'])
+                          update_query_params(st.session_state['selected_races'])
                       else:
                           st.warning(f"{selected_race} is already added.")
                   else:
                       st.warning("You can select up to 2 races.")
 
           st.subheader("Selected JSON Files")
-          if 'selected_races' in st.session_state and st.session_state['selected_races']:
+          if st.session_state['selected_races']:
               for race in st.session_state['selected_races']:
                   col_race, col_remove = st.columns([4, 1])
                   with col_race:
@@ -186,14 +191,13 @@ if st.session_state["authentication_status"]:
                       remove_button = st.button("Remove", key=f'remove_{race}')
                       if remove_button:
                           st.session_state['selected_races'].remove(race)
-                          set_query_param("selected_races", st.session_state['selected_races'])
-                          # Reset visualization flag if a race is removed
+                          update_query_params(st.session_state['selected_races'])
                           st.session_state['visualize_ready'] = False
           else:
               st.write("No files selected yet.")
 
-      # Automatically enable visualization when two races are selected
-      if len(st.session_state.get('selected_races', [])) == 2:
+      if len(st.session_state['selected_races']) == 2:
+          st.write("Two races selected, enabling visualization")
           st.session_state['visualize_ready'] = True
     
     handle_race_input()
