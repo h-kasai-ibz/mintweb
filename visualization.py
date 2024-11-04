@@ -301,12 +301,20 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
     lap_options_1 = create_lap_options(df_dynamic_1)
     lap_options_2 = create_lap_options(df_dynamic_2)
 
-    # Get initial lap selections from URL parameters if available
+    # Get initial lap selections from URL parameters if available, otherwise use fastest laps
     initial_lap1 = None
     initial_lap2 = None
     if 'selected_laps' in st.session_state:
         initial_lap1 = next((opt for opt in lap_options_1 if opt[0] == st.session_state['selected_laps'][0]), None)
         initial_lap2 = next((opt for opt in lap_options_2 if opt[0] == st.session_state['selected_laps'][1]), None)
+    
+    # If no laps in URL, use fastest laps
+    if not initial_lap1 or not initial_lap2:
+        _, fastest_lap_1 = get_lap_times_and_fastest(df_dynamic_1)
+        _, fastest_lap_2 = get_lap_times_and_fastest(df_dynamic_2)
+        initial_lap1 = next((opt for opt in lap_options_1 if opt[0] == fastest_lap_1), lap_options_1[0])
+        initial_lap2 = next((opt for opt in lap_options_2 if opt[0] == fastest_lap_2), lap_options_2[0])
+        st.session_state['selected_laps'] = [fastest_lap_1, fastest_lap_2]
 
     # Use st.form to group lap selection and avoid re-runs
     with st.form(key="lap_selection_form"):
@@ -316,7 +324,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
             options=lap_options_1,
             format_func=lambda x: x[1],
             key="lap_select_1",
-            index=lap_options_1.index(initial_lap1) if initial_lap1 else 0
+            index=lap_options_1.index(initial_lap1)
         )
 
         # Lap selection for race 2
@@ -325,7 +333,7 @@ def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selecte
             options=lap_options_2,
             format_func=lambda x: x[1],
             key="lap_select_2",
-            index=lap_options_2.index(initial_lap2) if initial_lap2 else 0
+            index=lap_options_2.index(initial_lap2)
         )
 
         # Submit button to apply lap selections
