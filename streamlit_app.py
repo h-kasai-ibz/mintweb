@@ -135,6 +135,9 @@ if st.session_state["authentication_status"]:
 
     # Main app logic
     def handle_race_input():
+      if 'selected_races' not in st.session_state:
+        st.session_state['selected_races'] = []
+        
       col1, col2 = st.columns([1, 2])
 
       with col1:
@@ -184,14 +187,13 @@ if st.session_state["authentication_status"]:
                       if remove_button:
                           st.session_state['selected_races'].remove(race)
                           set_query_param("selected_races", st.session_state['selected_races'])
+                          # Reset visualization flag if a race is removed
+                          st.session_state['visualize_ready'] = False
           else:
               st.write("No files selected yet.")
 
-      visualize_disabled = len(st.session_state.get('selected_races', [])) == 0
-      st.write("")
-      visualize_button = st.button("Visualize", disabled=visualize_disabled)
-
-      if visualize_button and not visualize_disabled:
+      # Automatically enable visualization when two races are selected
+      if len(st.session_state.get('selected_races', [])) == 2:
           st.session_state['visualize_ready'] = True
     
     handle_race_input()
