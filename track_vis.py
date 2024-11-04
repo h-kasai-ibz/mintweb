@@ -8,7 +8,7 @@ def get_course_list(directory):
     return [f for f in os.listdir(directory) if f.endswith('.json')]
 
 
-def get_course_track(json_file_path, reduction_factor=10):
+def get_course_track(json_file_path, reduction_factor=1):
     # Load the course track data from the JSON file
     with open(json_file_path, "r") as file:
         data = json.load(file)
@@ -22,41 +22,23 @@ def get_course_track(json_file_path, reduction_factor=10):
     # Create a Plotly figure for the course track
     fig = go.Figure()
 
-    # Add left edge of the track
-    fig.add_trace(go.Scatter(
-        x=left_x,
-        y=left_y,
-        mode="lines",
-        name="Left Edge",
-        line=dict(color="blue")
-    ))
-
-    # Add right edge of the track
-    fig.add_trace(go.Scatter(
-        x=right_x,
-        y=right_y,
-        mode="lines",
-        name="Right Edge",
-        line=dict(color="red")
-    ))
-
-    # Fill the area between the left and right edges to represent the road
+    # Just create the road fill without edge lines
     fig.add_trace(go.Scatter(
         x=left_x + right_x[::-1],  # Combine left_x and right_x for the fill
         y=left_y + right_y[::-1],  # Combine left_y and right_y for the fill
-        fill="toself",  # Fill between the two edges
-        fillcolor="lightgray",  # Road color (adjust this as needed)
-        line=dict(color="lightgray"),  # Optional: set outline color to match
+        fill="toself",             # Fill between the two edges
+        fillcolor="gray",          # Road color
+        opacity=0.3,               # Make it slightly transparent
+        line=dict(width=0),        # Remove the edge line completely
         name="Road",
-        hoverinfo="skip"  # Hide hover info for the fill
+        hoverinfo="skip"           # Hide hover info for the fill
     ))
 
-    # Update layout to give a title and axis labels
+    # Update layout
     fig.update_layout(
-        title="Course Track with Road Fill",
         xaxis_title="Position X",
         yaxis_title="Position Z",
-        showlegend=True
+        showlegend=False           # Hide legend since we only have the road
     )
 
     return fig
