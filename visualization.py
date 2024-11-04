@@ -207,24 +207,27 @@ def create_colored_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_l
     return race_line_fig
 
 # Function to print lap times as a table
-def print_lap_times_table(df_static_1, df_static_2):
+def print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2):
     st.markdown("Lap Times Comparison")
-    
-    # Function to parse lap times from a single row
-    def parse_lap_times(row):
-        if isinstance(row['lap_times'], str):
-            return json.loads(row['lap_times'])
-        elif isinstance(row['lap_times'], dict):
-            return row['lap_times']
-        else:
-            st.error(f"Unexpected type for lap_times: {type(row['lap_times'])}")
-            return {}
 
-    # Parse lap times and extract usernames for both races
-    lap_times_1 = parse_lap_times(df_static_1.iloc[0])
-    lap_times_2 = parse_lap_times(df_static_2.iloc[0])
-    username_1 = df_static_1.iloc[0]['username']
-    username_2 = df_static_2.iloc[0]['username']
+    # Helper function to extract the last 'current_lap_time' for each lap
+    def extract_lap_times(df_dynamic):
+        lap_times = {}
+        unique_laps = df_dynamic['lap'].unique()
+        for lap in unique_laps:
+            # Filter data for the current lap and get the last 'current_lap_time'
+            lap_data = df_dynamic[df_dynamic['lap'] == lap]
+            last_lap_time = lap_data['current_lap_time'].iloc[-1]
+            lap_times[str(lap)] = last_lap_time
+        return lap_times
+
+    # Extract lap times and usernames for both races
+    lap_times_1 = extract_lap_times(df_dynamic_1)
+    lap_times_2 = extract_lap_times(df_dynamic_2)
+    username_1 = df_static_1['username'].iloc[0] 
+    username_2 = df_static_2['username'].iloc[0]
+    if username_1 == username_2:
+      username_2 = username_2 + "(Ref)"
 
     # Find the maximum number of laps
     max_laps = max(len(lap_times_1), len(lap_times_2))
@@ -238,7 +241,7 @@ def print_lap_times_table(df_static_1, df_static_2):
             username_2: lap_times_2.get(str(lap), 'N/A')
         }
         data.append(row)
-    
+
     df_lap_times = pd.DataFrame(data)
     
     # Ensure the 'Lap' column is displayed as integers
@@ -247,12 +250,13 @@ def print_lap_times_table(df_static_1, df_static_2):
     # Display the DataFrame as a table without index
     st.dataframe(df_lap_times.set_index('Lap'))
 
+
 course_track_directory = 'course_track'
 
 
 def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
     # Display lap times table
-    print_lap_times_table(df_static_1, df_static_2)
+    print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2)
 
     # Use st.form to group lap selection and avoid re-runs
     with st.form(key="lap_selection_form"):
