@@ -7,25 +7,9 @@ from scipy.signal import find_peaks
 from track_vis import get_course_list, get_course_track
 from datetime import datetime
 
-def parse_time_column(df, time_column):
-    """Convert 'mm:ss:ms' format to seconds for Plotly compatibility, handling non-string entries."""
-    def convert_time(x):
-        if isinstance(x, str):  # Only parse if x is a string
-            time_obj = datetime.strptime(x, "%M:%S:%f")
-            return time_obj.minute * 60 + time_obj.second + time_obj.microsecond / 1e6
-        return None  # Return None for non-strings or invalid entries
-    
-    # Use a temporary Series to avoid chained assignment
-    converted_times = df[time_column].apply(convert_time)
-    df = df.assign(**{time_column: converted_times})  # Assign back to the DataFrame in a single step
-    df = df.dropna(subset=[time_column])  # Drop rows where time conversion failed
-    return df
-
-
 def create_comparison_plot(df1, df2, x_column, y_column, title, selected_lap, col, username1, username2):
-    if x_column == 'current_lap_time':
-          df1 = parse_time_column(df1, x_column)
-          df2 = parse_time_column(df2, x_column)
+    if username1 == username2:
+      username2 = "(Ref)" + username2
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df1[x_column], y=df1[y_column], mode='lines', name=f'{username1}', line=dict(color='blue')))
     fig.add_trace(go.Scatter(x=df2[x_column], y=df2[y_column], mode='lines', name=f'{username2}', line=dict(color='red')))
@@ -225,24 +209,27 @@ def create_colored_race_line_with_coursetrack(lap_data_1, lap_data_2, selected_l
     return race_line_fig
 
 # Function to print lap times as a table
-def print_lap_times_table(df_static_1, df_static_2):
+def print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2):
     st.markdown("Lap Times Comparison")
-    
-    # Function to parse lap times from a single row
-    def parse_lap_times(row):
-        if isinstance(row['lap_times'], str):
-            return json.loads(row['lap_times'])
-        elif isinstance(row['lap_times'], dict):
-            return row['lap_times']
-        else:
-            st.error(f"Unexpected type for lap_times: {type(row['lap_times'])}")
-            return {}
 
-    # Parse lap times and extract usernames for both races
-    lap_times_1 = parse_lap_times(df_static_1.iloc[0])
-    lap_times_2 = parse_lap_times(df_static_2.iloc[0])
-    username_1 = df_static_1.iloc[0]['username']
-    username_2 = df_static_2.iloc[0]['username']
+    # Helper function to extract the last 'current_lap_time' for each lap
+    def extract_lap_times(df_dynamic):
+        lap_times = {}
+        unique_laps = df_dynamic['lap'].unique()
+        for lap in unique_laps:
+            # Filter data for the current lap and get the last 'current_lap_time'
+            lap_data = df_dynamic[df_dynamic['lap'] == lap]
+            last_lap_time = lap_data['current_lap_time'].iloc[-1]
+            lap_times[str(lap)] = last_lap_time
+        return lap_times
+
+    # Extract lap times and usernames for both races
+    lap_times_1 = extract_lap_times(df_dynamic_1)
+    lap_times_2 = extract_lap_times(df_dynamic_2)
+    username_1 = df_static_1['username'].iloc[0] 
+    username_2 = df_static_2['username'].iloc[0]
+    if username_1 == username_2:
+      username_2 = "(Ref)" + username_2
 
     # Find the maximum number of laps
     max_laps = max(len(lap_times_1), len(lap_times_2))
@@ -256,7 +243,7 @@ def print_lap_times_table(df_static_1, df_static_2):
             username_2: lap_times_2.get(str(lap), 'N/A')
         }
         data.append(row)
-    
+
     df_lap_times = pd.DataFrame(data)
     
     # Ensure the 'Lap' column is displayed as integers
@@ -265,44 +252,141 @@ def print_lap_times_table(df_static_1, df_static_2):
     # Display the DataFrame as a table without index
     st.dataframe(df_lap_times.set_index('Lap'))
 
+
 course_track_directory = 'course_track'
 
+def get_lap_times_and_fastest(df_dynamic):
+    """
+    Extract lap times and identify the fastest lap
+    Returns a dictionary of lap times and the fastest lap number
+    """
+    lap_times = {}
+    for lap in df_dynamic['lap'].unique():
+        # Get the final frame's current_lap_time for each lap
+        lap_time = df_dynamic[df_dynamic['lap'] == lap]['current_lap_time'].iloc[-1]
+        lap_times[lap] = lap_time
+    
+    # Find the fastest lap
+    fastest_lap = min(lap_times.items(), key=lambda x: x[1])[0]
+    return lap_times, fastest_lap
 
-def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options):
+def create_lap_options(df_dynamic):
+    """
+    Create formatted options for lap selection dropdown
+    Returns list of tuples (lap_number, display_text)
+    """
+    lap_times, fastest_lap = get_lap_times_and_fastest(df_dynamic)
+    
+    # Format each lap option, adding (fastest) to the fastest lap
+    lap_options = []
+    for lap in sorted(lap_times.keys()):
+        display_text = f"Lap {lap} - {lap_times[lap]:.3f}s"
+        if lap == fastest_lap:
+            display_text += " (fastest)"
+        lap_options.append((lap, display_text))
+    
+    return lap_options
+
+def visualize_data(df_static_1, df_dynamic_1, df_static_2, df_dynamic_2, selected_plots, course_track_options, update_query_params):
     # Display lap times table
-    print_lap_times_table(df_static_1, df_static_2)
-
-    # Lap selection for race 1
-    selected_lap_1 = st.selectbox(f"{df_static_1['username'].iloc[0]} のラップを選択してください:", 
-                                  df_dynamic_1['lap'].unique(), key="lap_select_1")
-    
-    # Lap selection for race 2
-    selected_lap_2 = st.selectbox(f"{df_static_2['username'].iloc[0]} のラップを選択してください:", 
-                                  df_dynamic_2['lap'].unique(), key="lap_select_2")
-    
-    # Filter data for the selected lap for each race
-    selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_1]
-    selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_2]
-
-    # Get usernames from static data
     username1 = df_static_1['username'].iloc[0]
     username2 = df_static_2['username'].iloc[0]
+    if username1 == username2:
+        display_username2 = f"(Ref){username2}"
+    else:
+        display_username2 = username2
+    print_lap_times_table(df_static_1, df_static_2, df_dynamic_1, df_dynamic_2)
 
-    # Visualize race line with course track
-    detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
-        selected_lap_data_1, selected_lap_data_2, selected_lap_1, username1, username2, course_track_options, width=600, height=600
+    # Create lap options with fastest lap indicator
+    lap_options_1 = create_lap_options(df_dynamic_1)
+    lap_options_2 = create_lap_options(df_dynamic_2)
+
+    # Get initial lap selections from URL parameters if available, otherwise use fastest laps
+    initial_lap1 = None
+    initial_lap2 = None
+    if 'selected_laps' in st.session_state:
+        initial_lap1 = next((opt for opt in lap_options_1 if opt[0] == st.session_state['selected_laps'][0]), None)
+        initial_lap2 = next((opt for opt in lap_options_2 if opt[0] == st.session_state['selected_laps'][1]), None)
+    
+    # If no laps in URL, use fastest laps
+    if not initial_lap1 or not initial_lap2:
+        _, fastest_lap_1 = get_lap_times_and_fastest(df_dynamic_1)
+        _, fastest_lap_2 = get_lap_times_and_fastest(df_dynamic_2)
+        initial_lap1 = next((opt for opt in lap_options_1 if opt[0] == fastest_lap_1), lap_options_1[0])
+        initial_lap2 = next((opt for opt in lap_options_2 if opt[0] == fastest_lap_2), lap_options_2[0])
+        st.session_state['selected_laps'] = [fastest_lap_1, fastest_lap_2]
+
+    # Use st.form to group lap selection and avoid re-runs
+    with st.form(key="lap_selection_form"):
+        # Lap selection for race 1
+        selected_lap_1 = st.selectbox(
+            f"{username1} のラップを選択してください:",
+            options=lap_options_1,
+            format_func=lambda x: x[1],
+            key="lap_select_1",
+            index=lap_options_1.index(initial_lap1)
+        )
+
+        # Lap selection for race 2
+        selected_lap_2 = st.selectbox(
+            f"{display_username2} のラップを選択してください:",
+            options=lap_options_2,
+            format_func=lambda x: x[1],
+            key="lap_select_2",
+            index=lap_options_2.index(initial_lap2)
+        )
+
+        # Submit button to apply lap selections
+        submit_button = st.form_submit_button("Submit")
+
+    # Determine if we should auto-visualize
+    should_auto_visualize = (
+        'selected_laps' in st.session_state and 
+        not st.session_state.get('has_auto_visualized', False)
     )
-    st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
 
-    # Visualize other plots in two-column layout
-    for i in range(0, len(selected_plots), 2):
-        col1, col2 = st.columns(2)
+    # Update URL parameters and visualize when form is submitted or auto-visualize is triggered
+    if submit_button or should_auto_visualize:
+        # Get the lap numbers to use
+        if submit_button:
+            selected_lap_num_1 = selected_lap_1[0]
+            selected_lap_num_2 = selected_lap_2[0]
+        else:  # Auto-visualize case
+            selected_lap_num_1 = st.session_state['selected_laps'][0]
+            selected_lap_num_2 = st.session_state['selected_laps'][1]
+            # Mark that we've done the auto-visualization
+            st.session_state['has_auto_visualized'] = True
         
-        create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'current_lap_time', 
-                               selected_plots[i][0], selected_plots[i][1], selected_lap_1, 
-                               col1, username1, username2)
-        
-        if i + 1 < len(selected_plots):
-            create_comparison_plot(selected_lap_data_1, selected_lap_data_2, 'current_lap_time', 
-                                   selected_plots[i+1][0], selected_plots[i+1][1], selected_lap_1, 
-                                   col2, username1, username2)
+        # Update URL with both races and laps
+        update_query_params(
+            st.session_state['selected_races'], 
+            [selected_lap_num_1, selected_lap_num_2]
+        )
+
+        # Filter data for the selected lap for each race
+        selected_lap_data_1 = df_dynamic_1[df_dynamic_1['lap'] == selected_lap_num_1]
+        selected_lap_data_2 = df_dynamic_2[df_dynamic_2['lap'] == selected_lap_num_2]
+
+        # Visualize race line with course track
+        detail_race_line_plot_with_coursetrack = create_colored_race_line_with_coursetrack(
+            selected_lap_data_1, selected_lap_data_2, selected_lap_num_1, 
+            username1, username2, course_track_options, width=600, height=600
+        )
+        st.plotly_chart(detail_race_line_plot_with_coursetrack, use_container_width=True)
+
+        # Visualize other plots in two-column layout
+        for i in range(0, len(selected_plots), 2):
+            col1, col2 = st.columns(2)
+            
+            create_comparison_plot(
+                selected_lap_data_1, selected_lap_data_2, 'current_lap_time',
+                selected_plots[i][0], selected_plots[i][1], selected_lap_num_1,
+                col1, username1, username2
+            )
+            
+            if i + 1 < len(selected_plots):
+                create_comparison_plot(
+                    selected_lap_data_1, selected_lap_data_2, 'current_lap_time',
+                    selected_plots[i + 1][0], selected_plots[i + 1][1], selected_lap_num_1,
+                    col2, username1, username2
+                )
