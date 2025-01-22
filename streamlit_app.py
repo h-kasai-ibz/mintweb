@@ -153,6 +153,8 @@ if st.session_state["authentication_status"]:
             df_dynamic = pd.concat([df_dynamic, lap_df], ignore_index=True)
         
         df_dynamic['lap_index'] = df_dynamic.groupby('lap').cumcount()
+        # Invert Z positions 
+        df_dynamic['position_z'] = df_dynamic['position_z'] * -1
         
         # Calculate average for specific telemtry after populating the DataFrame
         df_dynamic = calculate_average(df_dynamic)
@@ -229,6 +231,12 @@ if st.session_state["authentication_status"]:
     if course_track_options:
         selected_course_track = st.selectbox("Select Course Track for Both Races:", course_track_options, key="course_track")
         course_track_data = get_course_track(os.path.join(course_track_directory, selected_course_track))
+
+            # Invert Z coordinates in course track data if it's a Figure
+        if isinstance(course_track_data, go.Figure):
+            for trace in course_track_data.data:
+                if hasattr(trace, 'y'):
+                    trace.y = [-y for y in trace.y]
     else:
         st.error("No course tracks available")
         course_track_data = None

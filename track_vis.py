@@ -7,7 +7,6 @@ def get_course_list(directory):
     """List available JSON files (course tracks) in the specified directory."""
     return [f for f in os.listdir(directory) if f.endswith('.json')]
 
-
 def get_course_track(json_file_path, reduction_factor=1):
     # Load the course track data from the JSON file
     with open(json_file_path, "r") as file:
